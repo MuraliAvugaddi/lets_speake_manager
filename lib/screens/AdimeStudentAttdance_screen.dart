@@ -17,7 +17,8 @@ class AdimeStudentAttdance_screen extends StatefulWidget {
 }
 
 class _AdimeStudentAttdance_screenState
-    extends State<AdimeStudentAttdance_screen> {
+    extends State<AdimeStudentAttdance_screen>
+    with WidgetsBindingObserver {
   static const Color navy = Color(0xFF155A88);
   static const Color deepNavy = Color(0xFF0E466D);
   static const Color blue = Color(0xFF2C6F9F);
@@ -83,6 +84,7 @@ class _AdimeStudentAttdance_screenState
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this); // 🚀 Register lifecycle observer
     final now = DateTime.now();
     selectedDate = DateTime(now.year, now.month, now.day);
     fetchAttendanceData();
@@ -90,13 +92,22 @@ class _AdimeStudentAttdance_screenState
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this); // 🚀 Clean up observer
     searchController.dispose();
     super.dispose();
   }
 
-  Future<void> fetchAttendanceData() async {
+  // 🚀 Automatically re-fetches attendance data when coming back to screen/foreground
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      fetchAttendanceData(silent: true);
+    }
+  }
+
+  Future<void> fetchAttendanceData({bool silent = false}) async {
     if (!mounted) return;
-    setState(() => isLoading = true);
+    if (!silent) setState(() => isLoading = true);
 
     String dateStr = DateFormat('d-M-yyyy').format(selectedDate);
 

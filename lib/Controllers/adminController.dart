@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:get_storage/get_storage.dart';
+import 'package:socket_io_client/socket_io_client.dart' as IO; // Add socket client
 import 'package:lets_speake_manager/Api/ApiendPoints.dart';
 
 class AdminController extends GetxController {
@@ -13,21 +15,69 @@ class AdminController extends GetxController {
 
   int currentPage = 1;
   int totalPages = 1;
-  final int limit = 50; // Increased limit to ensure all users load easily
+  final int limit = 50;
 
   final box = GetStorage();
+  Timer? _pollingTimer;
+  late IO.Socket _socket; // Socket instance for instant updates
 
   @override
   void onInit() {
     super.onInit();
     fetchAllUsers(isRefresh: true);
+    _initSocketListener(); // 🚀 Setup instant real-time updates
+
+    // Safety fallback: poll every 30 seconds just in case a socket packet drops
+    _pollingTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      fetchAllUsers(isRefresh: true, silent: true);
+    });
   }
 
-  Future<void> fetchAllUsers({bool isRefresh = false}) async {
+  // 🚀 Instant real-time listener using your backend Socket.io
+  void _initSocketListener() {
+    try {
+      // Connect to your backend base URL (extracting domain from ApiEndpoints)
+      final uri = Uri.parse(ApiEndpoints.baseUrl);
+      final host = "${uri.scheme}://${uri.host}:${uri.port}";
+
+      _socket = IO.io(host, <String, dynamic>{
+        'transports': ['websocket'],
+        'autoConnect': true,
+      });
+
+      _socket.onConnect((_) {
+        debugPrint("🔌 Admin connected to Socket.io for instant updates");
+        // Join an admin room if your backend supports it
+        _socket.emit('join_admin_room');
+      });
+
+      // Listen for any user changes (registrations, access updates, deletions)
+      _socket.on('user_updated', (_) {
+        debugPrint("⚡ Real-time update received: Refreshing users instantly.");
+        fetchAllUsers(isRefresh: true, silent: true);
+      });
+
+      _socket.on('new_user_registered', (_) {
+        debugPrint("⚡ New student registered: Refreshing list instantly.");
+        fetchAllUsers(isRefresh: true, silent: true);
+      });
+    } catch (e) {
+      debugPrint("Socket init error: $e");
+    }
+  }
+
+  @override
+  void onClose() {
+    _pollingTimer?.cancel();
+    _socket.dispose(); // Clean up socket connection
+    super.onClose();
+  }
+
+  Future<void> fetchAllUsers({bool isRefresh = false, bool silent = false}) async {
     if (isRefresh) {
-      isLoading.value = true;
+      if (!silent) isLoading.value = true;
       currentPage = 1;
-      usersList.clear();
+      if (!silent) usersList.clear();
     } else {
       if (currentPage >= totalPages) return;
       isMoreLoading.value = true;
@@ -37,7 +87,6 @@ class AdminController extends GetxController {
     String? token = box.read('token');
 
     try {
-      // 🚀 Query the robust all-students endpoint to guarantee pulling all student profiles
       final response = await http.get(
         Uri.parse(
           "${ApiEndpoints.baseUrl}/admin/all-students?mode=all&language=all",
@@ -68,15 +117,6 @@ class AdminController extends GetxController {
         } else {
           usersList.addAll(newUsers);
         }
-      } else {
-        if (isRefresh) {
-          Get.snackbar(
-            "Error",
-            "Failed to load user records from server",
-            backgroundColor: Colors.redAccent,
-            colorText: Colors.white,
-          );
-        }
       }
     } catch (e) {
       debugPrint("Error fetching users: $e");
@@ -94,7 +134,6 @@ class AdminController extends GetxController {
     String mode,
   ) async {
     String? token = box.read('token');
-
     try {
       final response = await http.put(
         Uri.parse(ApiEndpoints.updateAccess),
@@ -121,8 +160,6 @@ class AdminController extends GetxController {
           userObj['mode'] = mode.toLowerCase();
           usersList[index] = userObj;
         }
-      } else {
-        throw Exception("Failed to update access");
       }
     } catch (e) {
       rethrow;
@@ -138,28 +175,10 @@ class AdminController extends GetxController {
       );
 
       if (response.statusCode == 200) {
-        Get.snackbar(
-          "Success",
-          "User deleted successfully",
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
-        );
         usersList.removeWhere((user) => (user['_id'] ?? user['id']) == userId);
-      } else {
-        Get.snackbar(
-          "Error",
-          "Could not delete user",
-          backgroundColor: Colors.redAccent,
-          colorText: Colors.white,
-        );
       }
     } catch (e) {
-      Get.snackbar(
-        "Error",
-        "Connection failed: $e",
-        backgroundColor: Colors.redAccent,
-        colorText: Colors.white,
-      );
+      debugPrint("Delete error: $e");
     }
   }
 }

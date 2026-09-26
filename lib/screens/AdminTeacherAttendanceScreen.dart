@@ -10,7 +10,6 @@ import 'package:lets_speake_manager/Api/ApiendPoints.dart';
 import 'package:lets_speake_manager/Navigation/AdminShellNavigation.dart';
 import 'package:lets_speake_manager/screens/register_account_screen.dart';
 
-
 class AdminTeacherAttendanceScreen extends StatefulWidget {
   const AdminTeacherAttendanceScreen({super.key});
 
@@ -20,7 +19,8 @@ class AdminTeacherAttendanceScreen extends StatefulWidget {
 }
 
 class _AdminTeacherAttendanceScreenState
-    extends State<AdminTeacherAttendanceScreen> {
+    extends State<AdminTeacherAttendanceScreen>
+    with WidgetsBindingObserver {
   static const Color navy = Color(0xFF155A88);
   static const Color deepNavy = Color(0xFF0E466D);
   static const Color blue = Color(0xFF2C6F9F);
@@ -73,14 +73,29 @@ class _AdminTeacherAttendanceScreenState
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this); // 🚀 Register lifecycle observer
     final now = DateTime.now();
     selectedDate = DateTime(now.year, now.month, now.day);
     fetchTeacherAttendance();
   }
 
-  Future<void> fetchTeacherAttendance() async {
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this); // 🚀 Clean up observer
+    super.dispose();
+  }
+
+  // 🚀 Automatically refreshes teacher records when returning to the screen/foreground
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      fetchTeacherAttendance(silent: true);
+    }
+  }
+
+  Future<void> fetchTeacherAttendance({bool silent = false}) async {
     if (!mounted) return;
-    setState(() => isLoading = true);
+    if (!silent) setState(() => isLoading = true);
 
     String day = selectedDate.day.toString().padLeft(2, '0');
     String month = selectedDate.month.toString().padLeft(2, '0');
@@ -102,7 +117,6 @@ class _AdminTeacherAttendanceScreenState
         ),
       );
 
-      // 🚀 Added stage and language parameters here so admin matches the exact trainer stage
       final attendanceResponse = await http.get(
         Uri.parse(
           "${ApiEndpoints.baseUrl}/admin/attendance?date=$dateStr&stage=$queryStage&language=$queryLang&mode=$queryMode&role=teacher",
@@ -131,7 +145,6 @@ class _AdminTeacherAttendanceScreenState
           if (record != null &&
               (record['markedAt'] != null || record['joinTime'] != null)) {
             try {
-              // 🚀 Convert UTC server time to local device time so correct time shows accurately
               DateTime dt = DateTime.parse(
                 record['markedAt'] ?? record['joinTime'],
               ).toLocal();

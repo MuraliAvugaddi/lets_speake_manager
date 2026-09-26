@@ -7,7 +7,6 @@ import 'package:http/http.dart' as http;
 import 'package:get_storage/get_storage.dart';
 import 'package:lets_speake_manager/Api/ApiendPoints.dart';
 import 'package:lets_speake_manager/Navigation/AdminShellNavigation.dart';
-
 import 'package:url_launcher/url_launcher.dart';
 
 class AdminFeesManageScreen extends StatefulWidget {
@@ -17,7 +16,8 @@ class AdminFeesManageScreen extends StatefulWidget {
   State<AdminFeesManageScreen> createState() => _AdminFeesManageScreenState();
 }
 
-class _AdminFeesManageScreenState extends State<AdminFeesManageScreen> {
+class _AdminFeesManageScreenState extends State<AdminFeesManageScreen>
+    with WidgetsBindingObserver {
   static const Color navy = Color(0xFF155A88);
   static const Color deepNavy = Color(0xFF0E466D);
   static const Color blue = Color(0xFF2C6F9F);
@@ -72,17 +72,27 @@ class _AdminFeesManageScreenState extends State<AdminFeesManageScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this); // 🚀 Register lifecycle observer
     fetchStudents();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this); // 🚀 Clean up observer
     searchController.dispose();
     super.dispose();
   }
 
-  Future<void> fetchStudents() async {
-    setState(() => isLoading = true);
+  // 🚀 Automatically refreshes fee records when returning to the screen/foreground
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      fetchStudents(silent: true);
+    }
+  }
+
+  Future<void> fetchStudents({bool silent = false}) async {
+    if (!silent) setState(() => isLoading = true);
     try {
       final response = await http.get(
         Uri.parse(
@@ -92,9 +102,12 @@ class _AdminFeesManageScreenState extends State<AdminFeesManageScreen> {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        setState(() {
-          allStudents = data['students'] ?? [];
-        });
+        if (mounted) {
+          setState(() {
+            allStudents = data['students'] ?? [];
+            isLoading = false;
+          });
+        }
       }
     } catch (e) {
       debugPrint("Fee Directory Fetch Error: $e");
@@ -1044,25 +1057,6 @@ class _AdminFeesManageScreenState extends State<AdminFeesManageScreen> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildMetricSummaryCard(
-    String label,
-    String value,
-    Color color,
-    String filterKey,
-  ) {
-    return _summaryCard(
-      label: label,
-      value: value,
-      icon: filterKey == 'paid'
-          ? Icons.check_circle_rounded
-          : filterKey == 'unpaid'
-          ? Icons.pending_actions_rounded
-          : Icons.groups_rounded,
-      color: color,
-      filter: filterKey,
     );
   }
 

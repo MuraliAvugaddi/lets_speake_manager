@@ -16,7 +16,8 @@ class AdminFeedbackScreen extends StatefulWidget {
   State<AdminFeedbackScreen> createState() => _AdminFeedbackScreenState();
 }
 
-class _AdminFeedbackScreenState extends State<AdminFeedbackScreen> {
+class _AdminFeedbackScreenState extends State<AdminFeedbackScreen>
+    with WidgetsBindingObserver {
   static const Color navy = Color(0xFF155A88);
   static const Color deepNavy = Color(0xFF0E466D);
   static const Color blue = Color(0xFF2C6F9F);
@@ -53,11 +54,26 @@ class _AdminFeedbackScreenState extends State<AdminFeedbackScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this); // 🚀 Register lifecycle observer
     fetchFeedbacks();
   }
 
-  Future<void> fetchFeedbacks() async {
-    setState(() => isLoading = true);
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this); // 🚀 Clean up observer
+    super.dispose();
+  }
+
+  // 🚀 Automatically refreshes feedbacks when returning to the screen/foreground
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      fetchFeedbacks(silent: true);
+    }
+  }
+
+  Future<void> fetchFeedbacks({bool silent = false}) async {
+    if (!silent) setState(() => isLoading = true);
     String? token = box.read('token');
 
     String queryParams = "?mode=$filterMode";
@@ -79,21 +95,26 @@ class _AdminFeedbackScreenState extends State<AdminFeedbackScreen> {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        setState(() {
-          feedbackList = data['feedbacks'] ?? [];
-        });
+        if (mounted) {
+          setState(() {
+            feedbackList = data['feedbacks'] ?? [];
+            isLoading = false;
+          });
+        }
       } else {
-        Get.snackbar(
-          "Error",
-          "Failed to load feedbacks",
-          backgroundColor: alertRed,
-          colorText: Colors.white,
-          snackPosition: SnackPosition.TOP,
-        );
+        if (mounted) setState(() => isLoading = false);
+        if (!silent) {
+          Get.snackbar(
+            "Error",
+            "Failed to load feedbacks",
+            backgroundColor: alertRed,
+            colorText: Colors.white,
+            snackPosition: SnackPosition.TOP,
+          );
+        }
       }
     } catch (e) {
       debugPrint("Error fetching feedback: $e");
-    } finally {
       if (mounted) setState(() => isLoading = false);
     }
   }

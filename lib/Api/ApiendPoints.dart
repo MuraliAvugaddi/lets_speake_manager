@@ -1,8 +1,8 @@
 class ApiEndpoints {
   //static const String baseUrl = "http://10.13.73.18:5000/api";
   static const String baseUrl =
-      "https://lets-talk-backend-o06t.onrender.com/api";
-  // "http://192.168.1.3:5000/api";
+      //  "https://lets-talk-backend-o06t.onrender.com/api";
+      "http://192.168.1.3:5000/api";
 
   // Auth Endpoints
   static const String login = "$baseUrl/login";
