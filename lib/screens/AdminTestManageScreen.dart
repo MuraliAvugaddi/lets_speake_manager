@@ -413,6 +413,19 @@ class _AdminTestManageScreenState extends State<AdminTestManageScreen> {
                 Expanded(
                   child: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 180),
+                    // Keep the selected page pinned to the top.
+                    // The default AnimatedSwitcher layout can center a
+                    // short child vertically, creating a large blank gap
+                    // below the Create & Publish / Student Results tabs.
+                    layoutBuilder: (currentChild, previousChildren) {
+                      return Stack(
+                        alignment: Alignment.topCenter,
+                        children: <Widget>[
+                          ...previousChildren,
+                          if (currentChild != null) currentChild,
+                        ],
+                      );
+                    },
                     child: selectedTab == 0
                         ? _buildCreatePage(
                             isDesktop: isDesktop,
@@ -1083,33 +1096,48 @@ class _AdminTestManageScreenState extends State<AdminTestManageScreen> {
     );
   }
 
-  Widget _buildResultsPage({required bool isDesktop, required bool isTablet}) {
+
+  Widget _buildResultsPage({
+    required bool isDesktop,
+    required bool isTablet,
+  }) {
     final online = _getFilteredResults('online');
     final offline = _getFilteredResults('offline');
+    final total = online.length + offline.length;
 
     return RefreshIndicator(
       color: navy,
+      backgroundColor: surface,
       onRefresh: fetchResults,
       child: SingleChildScrollView(
         key: const ValueKey('results-page'),
-        physics: const AlwaysScrollableScrollPhysics(),
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: BouncingScrollPhysics(),
+        ),
         padding: EdgeInsets.fromLTRB(
           isDesktop
               ? 28
               : isTablet
-              ? 20
-              : 12,
-          12,
+                  ? 20
+                  : 12,
+          6,
           isDesktop
               ? 28
               : isTablet
-              ? 20
-              : 12,
+                  ? 20
+                  : 12,
           24,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            _buildResultsOverview(
+              total: total,
+              online: online.length,
+              offline: offline.length,
+              isDesktop: isDesktop,
+            ),
+            const SizedBox(height: 10),
             _buildResultsToolbar(),
             const SizedBox(height: 14),
             if (isFetchingResults)
@@ -1123,10 +1151,10 @@ class _AdminTestManageScreenState extends State<AdminTestManageScreen> {
                 columns: isDesktop
                     ? 3
                     : isTablet
-                    ? 2
-                    : 1,
+                        ? 2
+                        : 1,
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 20),
               _resultsSection(
                 title: 'Offline students',
                 count: offline.length,
@@ -1135,8 +1163,8 @@ class _AdminTestManageScreenState extends State<AdminTestManageScreen> {
                 columns: isDesktop
                     ? 3
                     : isTablet
-                    ? 2
-                    : 1,
+                        ? 2
+                        : 1,
               ),
             ],
           ],
@@ -1145,12 +1173,204 @@ class _AdminTestManageScreenState extends State<AdminTestManageScreen> {
     );
   }
 
+  Widget _buildResultsOverview({
+    required int total,
+    required int online,
+    required int offline,
+    required bool isDesktop,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(isDesktop ? 20 : 15),
+      decoration: BoxDecoration(
+        color: surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: border),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0D155A88),
+            blurRadius: 16,
+            offset: Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [deepNavy, blue],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.bar_chart_rounded,
+                  color: Colors.white,
+                  size: 21,
+                ),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Student test results',
+                      style: GoogleFonts.poppins(
+                        color: text,
+                        fontSize: isDesktop ? 15 : 13,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '$selectedLanguage • ${_stageLabel(selectedStage)}',
+                      style: GoogleFonts.poppins(
+                        color: secondary,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (isDesktop)
+                Text(
+                  'Submission overview',
+                  style: GoogleFonts.poppins(
+                    color: secondary,
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 560;
+
+              final cards = [
+                _summaryMetric(
+                  icon: Icons.groups_rounded,
+                  label: 'Total submissions',
+                  value: '$total',
+                  accent: navy,
+                ),
+                _summaryMetric(
+                  icon: Icons.wifi_rounded,
+                  label: 'Online',
+                  value: '$online',
+                  accent: teal,
+                ),
+                _summaryMetric(
+                  icon: Icons.location_on_rounded,
+                  label: 'Offline',
+                  value: '$offline',
+                  accent: blue,
+                ),
+              ];
+
+              if (compact) {
+                return Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(child: cards[0]),
+                        const SizedBox(width: 8),
+                        Expanded(child: cards[1]),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    cards[2],
+                  ],
+                );
+              }
+
+              return Row(
+                children: [
+                  Expanded(child: cards[0]),
+                  const SizedBox(width: 9),
+                  Expanded(child: cards[1]),
+                  const SizedBox(width: 9),
+                  Expanded(child: cards[2]),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryMetric({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color accent,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+      decoration: BoxDecoration(
+        color: soft,
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: accent.withAlpha(24),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Icon(icon, color: accent, size: 16),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    color: secondary,
+                    fontSize: 8.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  value,
+                  style: GoogleFonts.poppins(
+                    color: text,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildResultsToolbar() {
     return _card(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(13),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final compact = constraints.maxWidth < 650;
+          final compact = constraints.maxWidth < 700;
+
           final selectors = Row(
             children: [
               Expanded(
@@ -1178,39 +1398,77 @@ class _AdminTestManageScreenState extends State<AdminTestManageScreen> {
 
           final title = Row(
             children: [
-              const Icon(Icons.bar_chart_rounded, color: navy, size: 18),
-              const SizedBox(width: 7),
-              Expanded(
-                child: Text(
-                  '$selectedLanguage • ${_stageLabel(selectedStage)} results',
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.poppins(
-                    color: text,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                  ),
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE4F0F7),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.tune_rounded,
+                  color: navy,
+                  size: 17,
                 ),
               ),
-              IconButton(
-                tooltip: 'Refresh results',
-                onPressed: isFetchingResults ? null : fetchResults,
-                icon: const Icon(Icons.refresh_rounded, size: 19),
-                color: navy,
-                visualDensity: VisualDensity.compact,
+              const SizedBox(width: 9),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Result filters',
+                      style: GoogleFonts.poppins(
+                        color: text,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      'Choose a language and stage',
+                      style: GoogleFonts.poppins(
+                        color: secondary,
+                        fontSize: 8.5,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Material(
+                color: soft,
+                borderRadius: BorderRadius.circular(10),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: isFetchingResults ? null : fetchResults,
+                  child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: Icon(
+                      Icons.refresh_rounded,
+                      size: 18,
+                      color: isFetchingResults ? secondary : navy,
+                    ),
+                  ),
+                ),
               ),
             ],
           );
 
           if (compact) {
             return Column(
-              children: [title, const SizedBox(height: 9), selectors],
+              children: [
+                title,
+                const SizedBox(height: 11),
+                selectors,
+              ],
             );
           }
 
           return Row(
             children: [
-              Expanded(child: title),
-              const SizedBox(width: 14),
+              Expanded(flex: 5, child: title),
+              const SizedBox(width: 18),
               SizedBox(width: 390, child: selectors),
             ],
           );
@@ -1232,9 +1490,12 @@ class _AdminTestManageScreenState extends State<AdminTestManageScreen> {
         Row(
           children: [
             Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
+              width: 9,
+              height: 9,
+              decoration: BoxDecoration(
+                color: accent,
+                shape: BoxShape.circle,
+              ),
             ),
             const SizedBox(width: 8),
             Text(
@@ -1242,12 +1503,15 @@ class _AdminTestManageScreenState extends State<AdminTestManageScreen> {
               style: GoogleFonts.poppins(
                 color: text,
                 fontSize: 13,
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w800,
               ),
             ),
             const SizedBox(width: 7),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 3,
+              ),
               decoration: BoxDecoration(
                 color: accent.withAlpha(25),
                 borderRadius: BorderRadius.circular(20),
@@ -1271,7 +1535,7 @@ class _AdminTestManageScreenState extends State<AdminTestManageScreen> {
             children: List.generate(
               list.length,
               (index) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.only(bottom: 9),
                 child: _resultCard(list[index], accent),
               ),
             ),
@@ -1283,11 +1547,12 @@ class _AdminTestManageScreenState extends State<AdminTestManageScreen> {
             itemCount: list.length,
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: columns,
-              crossAxisSpacing: 9,
-              mainAxisSpacing: 9,
-              mainAxisExtent: 92,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              mainAxisExtent: 112,
             ),
-            itemBuilder: (context, index) => _resultCard(list[index], accent),
+            itemBuilder: (context, index) =>
+                _resultCard(list[index], accent),
           ),
       ],
     );
@@ -1305,32 +1570,44 @@ class _AdminTestManageScreenState extends State<AdminTestManageScreen> {
     final resultColor = percentage >= 50 ? success : error;
 
     return Container(
-      padding: const EdgeInsets.all(11),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: surface,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: border),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A155A88),
+            blurRadius: 12,
+            offset: Offset(0, 3),
+          ),
+        ],
       ),
       child: Row(
         children: [
           Container(
-            width: 40,
-            height: 40,
+            width: 44,
+            height: 44,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: accent.withAlpha(25),
+              color: accent.withAlpha(24),
               shape: BoxShape.circle,
+              border: Border.all(
+                color: accent.withAlpha(45),
+              ),
             ),
             child: Text(
-              name.trim().isNotEmpty ? name.trim()[0].toUpperCase() : 'U',
+              name.trim().isNotEmpty
+                  ? name.trim()[0].toUpperCase()
+                  : 'U',
               style: GoogleFonts.poppins(
                 color: accent,
-                fontSize: 15,
+                fontSize: 16,
                 fontWeight: FontWeight.w800,
               ),
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 11),
           Expanded(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -1342,11 +1619,11 @@ class _AdminTestManageScreenState extends State<AdminTestManageScreen> {
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.poppins(
                     color: text,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 4),
                 Row(
                   children: [
                     const Icon(
@@ -1363,6 +1640,34 @@ class _AdminTestManageScreenState extends State<AdminTestManageScreen> {
                         style: GoogleFonts.poppins(
                           color: secondary,
                           fontSize: 9,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: soft,
+                          borderRadius: BorderRadius.circular(7),
+                        ),
+                        child: Text(
+                          '$score of $total correct',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.poppins(
+                            color: secondary,
+                            fontSize: 8,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ),
@@ -1371,30 +1676,49 @@ class _AdminTestManageScreenState extends State<AdminTestManageScreen> {
               ],
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 10),
           Container(
-            constraints: const BoxConstraints(minWidth: 58),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+            width: 66,
+            padding: const EdgeInsets.symmetric(
+              horizontal: 6,
+              vertical: 8,
+            ),
             decoration: BoxDecoration(
               color: resultColor.withAlpha(18),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: resultColor.withAlpha(35),
+              ),
             ),
             child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
                   '$score/$total',
                   style: GoogleFonts.poppins(
                     color: text,
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
+                const SizedBox(height: 1),
                 Text(
                   '${percentage.toStringAsFixed(0)}%',
                   style: GoogleFonts.poppins(
                     color: resultColor,
-                    fontSize: 9,
+                    fontSize: 10,
                     fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  percentage >= 50 ? 'Passed' : 'Below 50%',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    color: resultColor,
+                    fontSize: 7,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ],

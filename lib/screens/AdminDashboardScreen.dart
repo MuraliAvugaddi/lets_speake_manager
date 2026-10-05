@@ -9,11 +9,10 @@ import 'package:lets_speake_manager/Api/ApiendPoints.dart';
 import 'package:lets_speake_manager/Controllers/adminController.dart';
 import 'package:lets_speake_manager/Navigation/AdminShellNavigation.dart';
 
-
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
 
-  @override
+  @override 
   State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
 }
 
@@ -94,15 +93,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
       if (results[0].statusCode == 200) {
         final data = jsonDecode(results[0].body);
-        onlineNotification = data['hasNotification'] == true
-            ? data['message']
-            : null;
+        setState(() {
+          onlineNotification = (data['hasNotification'] == true &&
+                  data['targetMode']?.toString().toLowerCase() == 'online')
+              ? data['message']
+              : null;
+        });
       }
       if (results[1].statusCode == 200) {
         final data = jsonDecode(results[1].body);
-        offlineNotification = data['hasNotification'] == true
-            ? data['message']
-            : null;
+        setState(() {
+          offlineNotification = (data['hasNotification'] == true &&
+                  data['targetMode']?.toString().toLowerCase() == 'offline')
+              ? data['message']
+              : null;
+        });
       }
     } catch (e) {
       debugPrint("Error fetching notifications: $e");
@@ -112,6 +117,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   }
 
   Future<void> _postNotification(String message, String targetMode) async {
+    final cleanMode = targetMode.toLowerCase().trim();
     try {
       final response = await http.post(
         Uri.parse(ApiEndpoints.notification),
@@ -119,14 +125,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           "Content-Type": "application/json",
           "Authorization": "Bearer ${box.read('token')}",
         },
-        body: jsonEncode({"message": message, "targetMode": targetMode}),
+        body: jsonEncode({"message": message, "targetMode": cleanMode}),
       );
 
       if (response.statusCode == 200) {
         Get.back();
+        setState(() {
+          if (cleanMode == 'online') {
+            onlineNotification = message;
+          } else {
+            offlineNotification = message;
+          }
+        });
         Get.snackbar(
           "Broadcast Sent",
-          "${targetMode.toUpperCase()} notification published successfully.",
+          "${cleanMode.toUpperCase()} notification published successfully.",
           backgroundColor: successGreen.withOpacity(0.9),
           colorText: Colors.white,
           snackPosition: SnackPosition.TOP,
@@ -149,16 +162,25 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   }
 
   Future<void> _deleteNotification(String targetMode) async {
+    final cleanMode = targetMode.toLowerCase().trim();
     try {
       final response = await http.delete(
-        Uri.parse("${ApiEndpoints.notification}?targetMode=$targetMode"),
+        Uri.parse("${ApiEndpoints.notification}?targetMode=$cleanMode"),
         headers: {"Authorization": "Bearer ${box.read('token')}"},
       );
 
       if (response.statusCode == 200) {
+        setState(() {
+          if (cleanMode == 'online') {
+            onlineNotification = null;
+          } else {
+            offlineNotification = null;
+          }
+        });
+
         Get.snackbar(
-          "Announcement Cleared",
-          "${targetMode.toUpperCase()} notice has been removed.",
+          "Notice Cleared",
+          "${cleanMode.toUpperCase()} announcement removed successfully.",
           backgroundColor: accentOrange.withOpacity(0.9),
           colorText: Colors.white,
           snackPosition: SnackPosition.TOP,
@@ -181,8 +203,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   }
 
   void _openBroadcastDialog(String targetMode) {
-    final textController = TextEditingController();
-    final bool isOnline = targetMode.toLowerCase() == "online";
+    final cleanMode = targetMode.toLowerCase().trim();
+    final bool isOnline = cleanMode == "online";
+    final String currentNotice =
+        (isOnline ? onlineNotification : offlineNotification) ?? '';
+    final textController = TextEditingController(text: currentNotice);
     final Color modeColor = isOnline ? accentBlue : accentOrange;
 
     Get.bottomSheet(
@@ -206,7 +231,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                       Icon(Icons.campaign_rounded, color: modeColor, size: 24),
                       const SizedBox(width: 10),
                       Text(
-                        "${targetMode.toUpperCase()} Broadcast",
+                        "${cleanMode.toUpperCase()} Broadcast",
                         style: GoogleFonts.poppins(
                           color: textColor,
                           fontSize: 16,
@@ -226,7 +251,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               ),
               const SizedBox(height: 6),
               Text(
-                "Broadcasts exclusively to ${targetMode.toUpperCase()} students in real time.",
+                "Broadcasts exclusively to ${cleanMode.toUpperCase()} students in real time.",
                 style: GoogleFonts.poppins(color: secondaryText, fontSize: 12),
               ),
               const SizedBox(height: 16),
@@ -236,7 +261,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 style: GoogleFonts.poppins(color: textColor, fontSize: 13),
                 decoration: InputDecoration(
                   hintText:
-                      "Enter ${targetMode.toLowerCase()} announcement notice...",
+                      "Enter ${cleanMode.toLowerCase()} announcement notice...",
                   hintStyle: GoogleFonts.poppins(
                     color: secondaryText,
                     fontSize: 12,
@@ -261,12 +286,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   onPressed: () {
                     final msg = textController.text.trim();
                     if (msg.isNotEmpty) {
-                      _postNotification(msg, targetMode);
+                      _postNotification(msg, cleanMode);
                     }
                   },
                   icon: const Icon(Icons.send_rounded, size: 16),
                   label: Text(
-                    "Post $targetMode Notice",
+                    "Post ${cleanMode.toUpperCase()} Notice",
                     style: GoogleFonts.poppins(
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
@@ -305,36 +330,109 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
     return Scaffold(
       backgroundColor: backgroundColor,
-      appBar: AppBar(
-        backgroundColor: cardColor,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        toolbarHeight: 64,
-        leading: IconButton(
-          tooltip: 'Menu',
-          onPressed: _openAdminDrawerOrBack,
-          icon: Icon(Icons.menu_rounded, color: textColor, size: 21),
-        ),
-        titleSpacing: 0,
-        title: Text(
-          'Students',
-          style: GoogleFonts.poppins(
-            color: textColor,
-            fontSize: isWide ? 18 : 16,
-            fontWeight: FontWeight.w700,
+      appBar: PreferredSize(
+        preferredSize: Size.fromHeight(isWide ? 60 : 54),
+        child: Container(
+          height: isWide ? 60 : 54,
+          decoration: BoxDecoration(
+            color: cardColor,
+            border: const Border(
+              bottom: BorderSide(color: borderColor, width: 1),
+            ),
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: isWide ? 58 : 50,
+                child: Center(
+                  child: IconButton(
+                    tooltip: 'Menu',
+                    onPressed: _openAdminDrawerOrBack,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 42,
+                      minHeight: 42,
+                    ),
+                    splashRadius: 20,
+                    icon: const Icon(
+                      Icons.menu_rounded,
+                      color: textColor,
+                      size: 25,
+                    ),
+                  ),
+                ),
+              ),
+              Container(
+                width: isWide ? 38 : 34,
+                height: isWide ? 38 : 34,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [
+                      Color(0xFF0E466D),
+                      Color(0xFF155A88),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: const Icon(
+                  Icons.people_alt_rounded,
+                  color: Colors.white,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Students',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        color: textColor,
+                        fontSize: isWide ? 18 : 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (isWide)
+                      Text(
+                        'Manage students, access and learning status',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          color: secondaryText,
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: 'Refresh',
+                onPressed: () {
+                  adminController.fetchAllUsers(isRefresh: true);
+                  _fetchActiveNotifications();
+                },
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(
+                  minWidth: 42,
+                  minHeight: 42,
+                ),
+                splashRadius: 20,
+                icon: const Icon(
+                  Icons.refresh_rounded,
+                  color: textColor,
+                  size: 23,
+                ),
+              ),
+              SizedBox(width: isWide ? 8 : 4),
+            ],
           ),
         ),
-        actions: [
-          IconButton(
-            tooltip: 'Refresh',
-            onPressed: () {
-              adminController.fetchAllUsers(isRefresh: true);
-              _fetchActiveNotifications();
-            },
-            icon: Icon(Icons.refresh_rounded, color: accentPurple, size: 21),
-          ),
-          const SizedBox(width: 8),
-        ],
       ),
       body: SafeArea(
         child: Center(
@@ -419,7 +517,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
       return LayoutBuilder(
         builder: (context, constraints) {
-          final compact = constraints.maxWidth < 600;
           return Row(
             children: [
               for (int i = 0; i < items.length; i++) ...[
@@ -587,10 +684,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     required String? activeNotif,
     required Color accentColor,
   }) {
+    final cleanMode = mode.toLowerCase().trim();
     final hasNotice = activeNotif != null && activeNotif.trim().isNotEmpty;
+    final displayMode = cleanMode == 'online' ? 'Online' : 'Offline';
 
     return PopupMenuButton<String>(
-      tooltip: hasNotice ? 'Manage announcement' : 'Post announcement',
+      tooltip: 'Manage announcement',
       offset: const Offset(0, 8),
       color: cardColor,
       elevation: 8,
@@ -599,15 +698,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         side: const BorderSide(color: borderColor),
       ),
       onSelected: (value) {
-        if (value == 'post' || value == 'edit') {
-          _openBroadcastDialog(mode);
+        if (value == 'post') {
+          _openBroadcastDialog(cleanMode);
         } else if (value == 'clear') {
-          _deleteNotification(mode);
+          _deleteNotification(cleanMode);
         }
       },
       itemBuilder: (context) => [
         PopupMenuItem<String>(
-          value: hasNotice ? 'edit' : 'post',
+          value: 'post',
           child: Row(
             children: [
               Icon(
@@ -617,7 +716,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               ),
               const SizedBox(width: 10),
               Text(
-                hasNotice ? 'Edit announcement' : 'Post announcement',
+                hasNotice ? 'Edit $displayMode Notice' : 'Post $displayMode Notice',
                 style: GoogleFonts.poppins(
                   color: textColor,
                   fontSize: 12,
@@ -635,7 +734,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 Icon(Icons.delete_outline_rounded, color: alertRed, size: 18),
                 const SizedBox(width: 10),
                 Text(
-                  'Clear announcement',
+                  'Clear $displayMode Notice',
                   style: GoogleFonts.poppins(
                     color: alertRed,
                     fontSize: 12,
@@ -666,7 +765,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             ),
             const SizedBox(width: 7),
             Text(
-              hasNotice ? 'Notice' : 'Post',
+              hasNotice ? '$displayMode Notice' : 'Post $displayMode',
               style: GoogleFonts.poppins(
                 color: accentColor,
                 fontSize: 10.5,
@@ -918,7 +1017,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         builder: (context, constraints) {
           final width = constraints.maxWidth;
 
-          // Mobile: list. Tablet: 2 columns. Web: 3-4 compact cards.
           final int columns;
           if (width < 600) {
             columns = 1;

@@ -10,40 +10,63 @@ import 'package:get/get.dart';
 /// Mobile / Tablet:
 /// - drawer navigation
 /// - screens can show a hamburger button.
+///
+/// Navigation indexes:
+/// 0 = Students
+/// 1 = Tests
+/// 2 = Student Attendance
+/// 3 = Teacher Attendance
+/// 4 = Fees
+/// 5 = Feedback
+/// 6 = Section Merge
+/// 7 = Fee Verification
+/// 8 = Student/User Detail
 class AdminShellNavigation {
   AdminShellNavigation._();
 
   static final GlobalKey<ScaffoldState> scaffoldKey =
       GlobalKey<ScaffoldState>();
 
-  /// 0 Students, 1 Tests, 2 Student Attendance,
-  /// 3 Teacher Attendance, 4 Fees, 5 Feedback, 6 Student Detail.
-  static final RxInt selectedIndex = 0.obs;
-
-  static final Rxn<dynamic> detailUser = Rxn<dynamic>();
-
-  /// Must match the breakpoint used by Homescreen.
   static const double desktopBreakpoint = 1000;
 
-  /// Whether the permanent desktop/web sidebar should be used.
+  /// Currently selected main module.
+  ///
+  /// 0-6 = normal modules
+  /// 7   = Fee Verification
+  /// 8   = Student/User Control
+  static final RxInt selectedIndex = 0.obs;
+
+  /// Selected student for User Control screen.
+  static final Rxn<dynamic> detailUser = Rxn<dynamic>();
+
+  /// Whether desktop/web sidebar should be used.
   static bool isDesktop(BuildContext context) {
     return MediaQuery.sizeOf(context).width >= desktopBreakpoint;
   }
 
-  /// Use this in individual screens before showing a hamburger button.
+  /// Whether mobile/tablet should show drawer button.
   static bool shouldShowMenuButton(BuildContext context) {
     return !isDesktop(context);
   }
 
+  /// Select a normal module.
+  ///
+  /// This clears any previously selected student.
   static void selectModule(int index) {
     detailUser.value = null;
     selectedIndex.value = index;
     closeDrawer();
   }
 
+  /// Open Student/User Control screen.
+  ///
+  /// IMPORTANT:
+  /// User Control now uses index 8.
+  /// Section Merge remains at index 6.
+  /// Fee Verification uses index 7.
   static void openUserControl(dynamic user) {
     detailUser.value = user;
-    selectedIndex.value = 6;
+    selectedIndex.value = 8;
     closeDrawer();
   }
 
@@ -55,12 +78,14 @@ class AdminShellNavigation {
     scaffoldKey.currentState?.closeDrawer();
   }
 
+  /// Return to Students screen.
   static void goHome() {
     detailUser.value = null;
     selectedIndex.value = 0;
     closeDrawer();
   }
 
+  /// Close Student/User Control and return to Students.
   static void closeDetail() {
     detailUser.value = null;
     selectedIndex.value = 0;

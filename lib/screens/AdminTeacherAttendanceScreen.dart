@@ -253,82 +253,141 @@ class _AdminTeacherAttendanceScreenState
 
     return Scaffold(
       backgroundColor: backgroundColor,
-      appBar: AppBar(
-        backgroundColor: cardColor,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        toolbarHeight: isWeb ? 72 : 62,
-        leading: IconButton(
-          tooltip: 'Menu',
-          onPressed: _openAdminDrawerOrBack,
-          icon: const Icon(Icons.menu_rounded, color: textColor, size: 23),
-        ),
-        titleSpacing: 0,
-        title: Row(
-          children: [
-            Container(
-              width: isWeb ? 40 : 34,
-              height: isWeb ? 40 : 34,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [deepNavy, navy]),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(
-                Icons.co_present_rounded,
-                color: Colors.white,
-                size: 18,
+      appBar: PreferredSize(
+        preferredSize: Size.fromHeight(isWeb ? 60 : 54),
+        child: Container(
+          height: isWeb ? 60 : 54,
+          decoration: const BoxDecoration(
+            color: cardColor,
+            border: Border(
+              bottom: BorderSide(
+                color: borderColor,
+                width: 1,
               ),
             ),
-            SizedBox(width: isWeb ? 11 : 8),
-            Flexible(
-              child: Text(
-                'Teacher Attendance',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.poppins(
-                  color: textColor,
-                  fontSize: isWeb ? 18 : 15,
-                  fontWeight: FontWeight.w700,
+          ),
+          child: Row(
+            children: [
+              // Compact hamburger — no border / no surrounding box.
+              SizedBox(
+                width: isWeb ? 58 : 50,
+                child: Center(
+                  child: IconButton(
+                    tooltip: 'Menu',
+                    onPressed: _openAdminDrawerOrBack,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 42,
+                      minHeight: 42,
+                    ),
+                    splashRadius: 20,
+                    icon: const Icon(
+                      Icons.menu_rounded,
+                      color: textColor,
+                      size: 25,
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ],
+
+              // Small page icon.
+              Container(
+                width: isWeb ? 38 : 34,
+                height: isWeb ? 38 : 34,
+                decoration: BoxDecoration(
+                  color: navy,
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Icon(
+                  Icons.co_present_rounded,
+                  color: Colors.white,
+                  size: isWeb ? 20 : 18,
+                ),
+              ),
+
+              SizedBox(width: isWeb ? 11 : 9),
+
+              // Compact title + subtitle.
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Teacher Attendance',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        color: textColor,
+                        fontSize: isWeb ? 18 : 15,
+                        fontWeight: FontWeight.w700,
+                        height: 1.05,
+                      ),
+                    ),
+                    if (isWeb)
+                      Text(
+                        'Manage teacher attendance and daily status',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          color: secondaryText,
+                          fontSize: 8.5,
+                          fontWeight: FontWeight.w500,
+                          height: 1.1,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+
+              // Keep registration, date and refresh actions compact.
+              _buildTrainerRegistrationButton(isWeb: isWeb),
+
+              IconButton(
+                tooltip: 'Select date',
+                onPressed: () => _selectDate(context),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(
+                  minWidth: 42,
+                  minHeight: 42,
+                ),
+                splashRadius: 20,
+                icon: const Icon(
+                  Icons.calendar_month_rounded,
+                  color: textColor,
+                  size: 21,
+                ),
+              ),
+
+              IconButton(
+                tooltip: 'Refresh',
+                onPressed: isLoading ? null : fetchTeacherAttendance,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(
+                  minWidth: 42,
+                  minHeight: 42,
+                ),
+                splashRadius: 20,
+                icon: isLoading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: navy,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.refresh_rounded,
+                        color: textColor,
+                        size: 23,
+                      ),
+              ),
+
+              SizedBox(width: isWeb ? 6 : 2),
+            ],
+          ),
         ),
-        actions: [
-          _buildTrainerRegistrationButton(isWeb: isWeb),
-          if (isWeb) const SizedBox(width: 4),
-          IconButton(
-            tooltip: 'Select date',
-            visualDensity: isWeb
-                ? VisualDensity.standard
-                : VisualDensity.compact,
-            padding: EdgeInsets.zero,
-            constraints: BoxConstraints.tightFor(
-              width: isWeb ? 40 : 34,
-              height: isWeb ? 40 : 34,
-            ),
-            onPressed: () => _selectDate(context),
-            icon: const Icon(
-              Icons.calendar_month_rounded,
-              color: textColor,
-              size: 20,
-            ),
-          ),
-          IconButton(
-            tooltip: 'Refresh',
-            visualDensity: isWeb
-                ? VisualDensity.standard
-                : VisualDensity.compact,
-            padding: EdgeInsets.zero,
-            constraints: BoxConstraints.tightFor(
-              width: isWeb ? 40 : 34,
-              height: isWeb ? 40 : 34,
-            ),
-            onPressed: isLoading ? null : fetchTeacherAttendance,
-            icon: const Icon(Icons.refresh_rounded, color: textColor, size: 21),
-          ),
-          if (isWeb) const SizedBox(width: 8),
-        ],
       ),
       body: SafeArea(
         child: Center(
@@ -458,8 +517,8 @@ class _AdminTeacherAttendanceScreenState
         onTap: () => Get.to(() => const RegisterAccountScreen()),
         borderRadius: BorderRadius.circular(9),
         child: Container(
-          height: 36,
-          padding: const EdgeInsets.symmetric(horizontal: 11),
+          height: 32,
+          padding: const EdgeInsets.symmetric(horizontal: 9),
           decoration: BoxDecoration(
             color: navy.withOpacity(.08),
             borderRadius: BorderRadius.circular(9),
@@ -468,7 +527,7 @@ class _AdminTeacherAttendanceScreenState
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.person_add_alt_1_rounded, color: navy, size: 16),
+              const Icon(Icons.person_add_alt_1_rounded, color: navy, size: 14),
               const SizedBox(width: 6),
               Text(
                 'Trainer Registration',

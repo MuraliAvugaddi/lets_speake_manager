@@ -8,7 +8,6 @@ import 'package:lets_speake_manager/Api/ApiendPoints.dart';
 import 'package:lets_speake_manager/Controllers/adminController.dart';
 import 'package:lets_speake_manager/Navigation/AdminShellNavigation.dart';
 
-
 class AdminUserControlScreen extends StatefulWidget {
   final dynamic user;
   const AdminUserControlScreen({super.key, required this.user});
@@ -24,11 +23,6 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> {
   static const Color softSurface = Color(0xFFEAF4FA);
 
   /// Return from this student's control page to the Students module.
-  ///
-  /// When Student Control is hosted inside the admin shell, this clears the
-  /// selected student and returns to the Students screen without pushing or
-  /// popping another route. If this screen was opened as a normal route,
-  /// Get.back() is used as a safe fallback.
   void _goBackToStudents() {
     if (AdminShellNavigation.detailUser.value != null) {
       AdminShellNavigation.goHome();
@@ -80,10 +74,28 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> {
   @override
   void initState() {
     super.initState();
+    _initializeUserData();
+  }
+
+  /// 🚀 FIX: Reset and deep copy state variables whenever the widget or target user changes
+  @override
+  void didUpdateWidget(covariant AdminUserControlScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.user['_id'] != widget.user['_id'] ||
+        oldWidget.user['id'] != widget.user['id']) {
+      _initializeUserData();
+      _fetchStudentDeepAnalytics();
+    }
+  }
+
+  void _initializeUserData() {
     englishAccess = Map<String, dynamic>.from(
-      widget.user['englishAccess'] ?? {},
+      jsonDecode(jsonEncode(widget.user['englishAccess'] ?? {})),
     );
-    hindiAccess = Map<String, dynamic>.from(widget.user['hindiAccess'] ?? {});
+    hindiAccess = Map<String, dynamic>.from(
+      jsonDecode(jsonEncode(widget.user['hindiAccess'] ?? {})),
+    );
+
     selectedMode = (widget.user['mode'] ?? 'online').toString().toLowerCase();
 
     final initialSection = (widget.user['onlineSection'] ?? '')
@@ -107,7 +119,7 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> {
 
   Future<void> _fetchStudentDeepAnalytics() async {
     final String userId = (widget.user['_id'] ?? widget.user['id']).toString();
-    setState(() => isLoadingAnalytics = true);
+    if (mounted) setState(() => isLoadingAnalytics = true);
 
     try {
       final responses = await Future.wait([
@@ -178,16 +190,26 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> {
     return alertRed;
   }
 
-  int _getSectionStudentCount(String sec) {
+  /// 🚀 FIXED: Counts online students belonging to section [sec] who have access to the specific [stageKey]
+  int _getSectionStudentCount(String sec, String stageKey) {
     return adminController.usersList.where((u) {
       final isOnline = u['mode']?.toString().toLowerCase() == 'online';
       final assignedSec = u['onlineSection']?.toString().toUpperCase() ?? '';
-      return isOnline && assignedSec == sec;
+      final engAccess = u['englishAccess'] as Map? ?? {};
+      final hasStageAccess = engAccess[stageKey] == true;
+
+      // Exclude the current student being edited
+      final currentUserId = (widget.user['_id'] ?? widget.user['id']).toString();
+      final uId = (u['_id'] ?? u['id']).toString();
+      if (uId == currentUserId) return false;
+
+      return isOnline && assignedSec == sec && hasStageAccess;
     }).length;
   }
 
   void _showSectionSelectionPopup(
     String stageTitle,
+    String stageKey,
     Function(String chosenSection) onSelected,
   ) {
     String tempSection = selectedSection.isNotEmpty && selectedSection != 'None'
@@ -210,7 +232,6 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header
                 Row(
                   children: [
                     Container(
@@ -243,9 +264,7 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> {
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 8),
-
                 Text(
                   "Review live student counts per section and select where to place this student.",
                   maxLines: 2,
@@ -256,12 +275,7 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> {
                     height: 1.4,
                   ),
                 ),
-
                 const SizedBox(height: 14),
-
-                // IMPORTANT:
-                // Flexible + ListView prevents the 5 section rows from
-                // overflowing on small phone screens.
                 Flexible(
                   child: StatefulBuilder(
                     builder: (context, setDialogState) {
@@ -274,7 +288,7 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> {
                         itemBuilder: (context, index) {
                           final sec = ["A", "B", "C", "D", "E"][index];
                           final bool isChosen = tempSection == sec;
-                          final int count = _getSectionStudentCount(sec);
+                          final int count = _getSectionStudentCount(sec, stageKey);
 
                           return Material(
                             color: Colors.transparent,
@@ -305,7 +319,6 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> {
                                 ),
                                 child: Row(
                                   children: [
-                                    // Section letter
                                     Container(
                                       width: 34,
                                       height: 34,
@@ -327,10 +340,7 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> {
                                         ),
                                       ),
                                     ),
-
                                     const SizedBox(width: 10),
-
-                                    // Section title
                                     Expanded(
                                       child: Text(
                                         "Online Section $sec",
@@ -345,11 +355,7 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> {
                                         ),
                                       ),
                                     ),
-
                                     const SizedBox(width: 7),
-
-                                    // Student count - compact and never allowed
-                                    // to push outside the dialog.
                                     ConstrainedBox(
                                       constraints: const BoxConstraints(
                                         maxWidth: 82,
@@ -391,10 +397,7 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> {
                     },
                   ),
                 ),
-
                 const SizedBox(height: 12),
-
-                // Bottom actions always remain visible.
                 Row(
                   children: [
                     Expanded(
@@ -455,9 +458,8 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> {
     bool enable, {
     required bool isEnglish,
   }) {
-    // 🚀 Only trigger section picker if enabling English stages in online mode
     if (enable && selectedMode == 'online' && isEnglish) {
-      _showSectionSelectionPopup("All English Stages", (chosenSec) {
+      _showSectionSelectionPopup("All English Stages", "stage1", (chosenSec) {
         setState(() {
           selectedSection = chosenSec;
           for (var key in stageKeys) {
@@ -474,7 +476,7 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> {
         accessMap[key] = enable;
       }
       if (!isEnglish && enable) {
-        selectedSection = 'None'; // Hindi does not use sections
+        selectedSection = 'None';
       }
     });
   }
@@ -505,7 +507,6 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> {
         body: jsonEncode({
           "userId": userId,
           "feeStatus": selectedFeeStatus,
-          // 🚀 Only assign section if online and has English access active
           "onlineSection": selectedMode == 'online' && hasAnyEnglishAccess
               ? selectedSection
               : 'None',
@@ -516,10 +517,10 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> {
       if (response.statusCode == 200) {
         Get.snackbar(
           "Changes Synchronized",
-          "Student permissions, fee status & sections updated live.",
+          "Student permissions & sections updated live.",
           backgroundColor: successGreen.withOpacity(0.95),
           colorText: Colors.white,
-          icon: const Icon(Icons.check_circle_rounded, color: textColor),
+          icon: const Icon(Icons.check_circle_rounded, color: Colors.white),
           snackPosition: SnackPosition.TOP,
           margin: const EdgeInsets.all(16),
           borderRadius: 14,
@@ -531,7 +532,7 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> {
         "Connection error: $e",
         backgroundColor: alertRed.withOpacity(0.95),
         colorText: Colors.white,
-        icon: const Icon(Icons.error_outline_rounded, color: textColor),
+        icon: const Icon(Icons.error_outline_rounded, color: Colors.white),
         snackPosition: SnackPosition.TOP,
         margin: const EdgeInsets.all(16),
         borderRadius: 14,
@@ -825,14 +826,6 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> {
                         icon: Icons.groups_rounded,
                         label: 'Section $selectedSection',
                       ),
-                    _heroChip(
-                      icon: selectedFeeStatus == 'paid'
-                          ? Icons.check_circle_rounded
-                          : Icons.payments_outlined,
-                      label: selectedFeeStatus == 'paid'
-                          ? 'Fee paid'
-                          : 'Fee unpaid',
-                    ),
                   ],
                 ),
               ],
@@ -1212,11 +1205,10 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> {
       title: 'Student settings',
       icon: Icons.tune_rounded,
       accent: accentPurple,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final wide = constraints.maxWidth >= 760;
-
-          final channel = _settingBlock(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _settingBlock(
             title: 'Learning mode',
             subtitle: 'Where the student attends classes',
             child: _buildChoiceGroup(
@@ -1243,104 +1235,55 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> {
                 ),
               ],
             ),
-          );
-
-          final fee = _settingBlock(
-            title: 'Monthly fee',
-            subtitle: 'Current payment status',
-            child: _buildChoiceGroup(
-              children: [
-                _buildSegmentButton(
-                  title: 'Paid',
-                  icon: Icons.check_circle_rounded,
-                  isSelected: selectedFeeStatus == 'paid',
-                  activeColor: successGreen,
-                  onTap: () {
-                    HapticFeedback.selectionClick();
-                    setState(() => selectedFeeStatus = 'paid');
-                  },
-                ),
-                _buildSegmentButton(
-                  title: 'Unpaid',
-                  icon: Icons.cancel_rounded,
-                  isSelected: selectedFeeStatus == 'unpaid',
-                  activeColor: alertRed,
-                  onTap: () {
-                    HapticFeedback.selectionClick();
-                    setState(() => selectedFeeStatus = 'unpaid');
-                  },
-                ),
-              ],
+          ),
+          if (selectedMode == 'online') ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 11,
+                vertical: 9,
+              ),
+              decoration: BoxDecoration(
+                color: accentBlue.withOpacity(.06),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: accentBlue.withOpacity(.16)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.groups_rounded, color: accentBlue, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      selectedSection.isEmpty || selectedSection == 'None'
+                          ? 'No section assigned'
+                          : 'Section $selectedSection assigned',
+                      style: GoogleFonts.poppins(
+                        color: secondaryText,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => _showSectionSelectionPopup(
+                      'Student',
+                      'stage1',
+                      (chosen) => setState(() => selectedSection = chosen),
+                    ),
+                    child: Text(
+                      'Change',
+                      style: GoogleFonts.poppins(
+                        color: accentBlue,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          );
-
-          final section = selectedMode == 'online'
-              ? Container(
-                  margin: const EdgeInsets.only(top: 10),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 11,
-                    vertical: 9,
-                  ),
-                  decoration: BoxDecoration(
-                    color: accentBlue.withOpacity(.06),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: accentBlue.withOpacity(.16)),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.groups_rounded, color: accentBlue, size: 16),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          selectedSection.isEmpty || selectedSection == 'None'
-                              ? 'No section assigned'
-                              : 'Section $selectedSection assigned',
-                          style: GoogleFonts.poppins(
-                            color: secondaryText,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () => _showSectionSelectionPopup(
-                          'Student',
-                          (chosen) => setState(() => selectedSection = chosen),
-                        ),
-                        child: Text(
-                          'Change',
-                          style: GoogleFonts.poppins(
-                            color: accentBlue,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              : const SizedBox.shrink();
-
-          if (wide) {
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(child: channel),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [fee, section],
-                  ),
-                ),
-              ],
-            );
-          }
-
-          return Column(
-            children: [channel, const SizedBox(height: 12), fee, section],
-          );
-        },
+          ],
+        ],
       ),
     );
   }
@@ -1416,27 +1359,6 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> {
               ),
             ],
           ),
-        ),
-      ],
-    );
-  }
-
-  Widget _controlLabel(String title, String subtitle) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: GoogleFonts.poppins(
-            color: textColor,
-            fontSize: 11.5,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          subtitle,
-          style: GoogleFonts.poppins(color: secondaryText, fontSize: 9.5),
         ),
       ],
     );
@@ -1664,7 +1586,7 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> {
                   accentColor: accentColor,
                   onChanged: (value) {
                     if (value && selectedMode == 'online' && isEnglish) {
-                      _showSectionSelectionPopup('Stage $stageNumber', (
+                      _showSectionSelectionPopup('$title Stage $stageNumber', key, (
                         chosenSec,
                       ) {
                         setState(() {

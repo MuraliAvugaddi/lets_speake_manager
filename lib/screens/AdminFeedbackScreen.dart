@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -47,6 +48,7 @@ class _AdminFeedbackScreenState extends State<AdminFeedbackScreen>
   final box = GetStorage();
   bool isLoading = true;
   List<dynamic> feedbackList = [];
+  Timer? _autoRefreshTimer; // 🚀 Background auto-refresh timer
 
   String filterMode = "all"; // 'all', 'online', 'offline'
   DateTime? selectedDate; // null means 'All Dates'
@@ -54,17 +56,22 @@ class _AdminFeedbackScreenState extends State<AdminFeedbackScreen>
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this); // 🚀 Register lifecycle observer
+    WidgetsBinding.instance.addObserver(this);
     fetchFeedbacks();
+
+    // 🚀 Automatically check for new student feedback every 10 seconds in the background
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      fetchFeedbacks(silent: true);
+    });
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this); // 🚀 Clean up observer
+    _autoRefreshTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
-  // 🚀 Automatically refreshes feedbacks when returning to the screen/foreground
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
@@ -73,7 +80,7 @@ class _AdminFeedbackScreenState extends State<AdminFeedbackScreen>
   }
 
   Future<void> fetchFeedbacks({bool silent = false}) async {
-    if (!silent) setState(() => isLoading = true);
+    if (!silent && mounted) setState(() => isLoading = true);
     String? token = box.read('token');
 
     String queryParams = "?mode=$filterMode";
@@ -102,20 +109,11 @@ class _AdminFeedbackScreenState extends State<AdminFeedbackScreen>
           });
         }
       } else {
-        if (mounted) setState(() => isLoading = false);
-        if (!silent) {
-          Get.snackbar(
-            "Error",
-            "Failed to load feedbacks",
-            backgroundColor: alertRed,
-            colorText: Colors.white,
-            snackPosition: SnackPosition.TOP,
-          );
-        }
+        if (mounted && !silent) setState(() => isLoading = false);
       }
     } catch (e) {
       debugPrint("Error fetching feedback: $e");
-      if (mounted) setState(() => isLoading = false);
+      if (mounted && !silent) setState(() => isLoading = false);
     }
   }
 
@@ -198,66 +196,116 @@ class _AdminFeedbackScreenState extends State<AdminFeedbackScreen>
 
     return Scaffold(
       backgroundColor: backgroundColor,
-      appBar: AppBar(
-        backgroundColor: cardColor,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        toolbarHeight: isWeb ? 72 : 62,
-        leading: IconButton(
-          tooltip: 'Menu',
-          onPressed: _openAdminDrawerOrBack,
-          icon: const Icon(Icons.menu_rounded, color: textColor, size: 23),
-        ),
-        titleSpacing: 0,
-        title: Row(
-          children: [
-            Container(
-              width: isWeb ? 40 : 36,
-              height: isWeb ? 40 : 36,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [deepNavy, navy]),
-                borderRadius: BorderRadius.circular(11),
-              ),
-              child: const Icon(
-                Icons.rate_review_rounded,
-                color: Colors.white,
-                size: 20,
+      appBar: PreferredSize(
+        preferredSize: Size.fromHeight(isWeb ? 60 : 54),
+        child: Container(
+          height: isWeb ? 60 : 54,
+          decoration: const BoxDecoration(
+            color: cardColor,
+            border: Border(
+              bottom: BorderSide(
+                color: borderColor,
+                width: 1,
               ),
             ),
-            const SizedBox(width: 11),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Student Feedback',
-                  style: GoogleFonts.poppins(
-                    color: textColor,
-                    fontSize: isWeb ? 18 : 16,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                if (isWeb)
-                  Text(
-                    'Review student feedback and ratings',
-                    style: GoogleFonts.poppins(
-                      color: secondaryText,
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w500,
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: isWeb ? 58 : 50,
+                child: Center(
+                  child: IconButton(
+                    tooltip: 'Menu',
+                    onPressed: _openAdminDrawerOrBack,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 42,
+                      minHeight: 42,
+                    ),
+                    splashRadius: 20,
+                    icon: const Icon(
+                      Icons.menu_rounded,
+                      color: textColor,
+                      size: 25,
                     ),
                   ),
-              ],
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'Refresh feedback',
-            onPressed: isLoading ? null : fetchFeedbacks,
-            icon: const Icon(Icons.refresh_rounded, color: textColor, size: 22),
+                ),
+              ),
+              Container(
+                width: isWeb ? 38 : 34,
+                height: isWeb ? 38 : 34,
+                decoration: BoxDecoration(
+                  color: navy,
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Icon(
+                  Icons.rate_review_rounded,
+                  color: Colors.white,
+                  size: isWeb ? 20 : 18,
+                ),
+              ),
+              SizedBox(width: isWeb ? 11 : 9),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Student Feedback',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        color: textColor,
+                        fontSize: isWeb ? 18 : 15,
+                        fontWeight: FontWeight.w700,
+                        height: 1.05,
+                      ),
+                    ),
+                    if (isWeb)
+                      Text(
+                        'Review student feedback and ratings',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          color: secondaryText,
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w500,
+                          height: 1.1,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.only(right: isWeb ? 9 : 5),
+                child: IconButton(
+                  tooltip: 'Refresh feedback',
+                  onPressed: () => fetchFeedbacks(),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(
+                    minWidth: 42,
+                    minHeight: 42,
+                  ),
+                  splashRadius: 20,
+                  icon: isLoading
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: navy,
+                          ),
+                        )
+                      : const Icon(
+                          Icons.refresh_rounded,
+                          color: textColor,
+                          size: 23,
+                        ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-        ],
+        ),
       ),
       body: SafeArea(
         child: Center(
@@ -268,7 +316,7 @@ class _AdminFeedbackScreenState extends State<AdminFeedbackScreen>
                 _buildOverviewHeader(isWeb: isWeb),
                 _buildFilterSection(isWeb: isWeb),
                 Expanded(
-                  child: isLoading
+                  child: isLoading && feedbackList.isEmpty
                       ? const Center(
                           child: CircularProgressIndicator(
                             color: navy,

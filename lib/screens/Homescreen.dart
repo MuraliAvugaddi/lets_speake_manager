@@ -2,16 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:google_fonts/google_fonts.dart';
+
 import 'package:lets_speake_manager/Navigation/AdminShellNavigation.dart';
 import 'package:lets_speake_manager/screens/AdimeStudentAttdance_screen.dart';
 import 'package:lets_speake_manager/screens/AdminDashboardScreen.dart';
 import 'package:lets_speake_manager/screens/AdminFeedbackScreen.dart';
+import 'package:lets_speake_manager/screens/AdminFeeVerificationScreen.dart';
 import 'package:lets_speake_manager/screens/AdminFeesManageScreen.dart';
+import 'package:lets_speake_manager/screens/AdminSectionMergeScreen.dart';
 import 'package:lets_speake_manager/screens/AdminTeacherAttendanceScreen.dart';
 import 'package:lets_speake_manager/screens/AdminTestManageScreen.dart';
 import 'package:lets_speake_manager/screens/AdminUserControlScreen.dart';
 import 'package:lets_speake_manager/screens/LoginScreen.dart';
-
 
 class Adime_home_screen extends StatefulWidget {
   const Adime_home_screen({super.key});
@@ -42,62 +44,103 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
       icon: Icons.people_alt_rounded,
       color: navy,
     ),
+
     _AdminModule(
       title: 'Tests',
       subtitle: 'Questions, publishing & results',
       icon: Icons.assignment_rounded,
       color: blue,
     ),
+
     _AdminModule(
       title: 'Attendance',
       subtitle: 'Student daily attendance',
       icon: Icons.fact_check_rounded,
       color: success,
     ),
+
     _AdminModule(
       title: 'Trainer Attendance',
       subtitle: 'Teacher attendance monitor',
       icon: Icons.co_present_rounded,
       color: teal,
     ),
+
     _AdminModule(
       title: 'Fees',
       subtitle: 'Fee status & reminders',
       icon: Icons.account_balance_wallet_rounded,
       color: yellow,
     ),
+
     _AdminModule(
       title: 'Feedback',
       subtitle: 'Reviews & student feedback',
       icon: Icons.rate_review_rounded,
       color: blue,
     ),
+
+    // SECTION MERGE
+    _AdminModule(
+      title: 'Section Merge',
+      subtitle: 'Merge & manage sections',
+      icon: Icons.merge_type_rounded,
+      color: teal,
+    ),
+
+    // FEE VERIFICATION
+    _AdminModule(
+      title: 'Fee Verification',
+      subtitle: 'Verify tuition payments',
+      icon: Icons.verified_rounded,
+      color: success,
+    ),
   ];
 
-  final List<Widget?> _pages = List<Widget?>.filled(7, null);
+  // 0-7 = modules
+  // 8   = Student/User Control
+  final List<Widget?> _pages = List<Widget?>.filled(9, null);
+
   dynamic _lastDetailUser;
 
   Widget _pageAt(int index) {
-    if (index == 6) {
+    // ------------------------------------------------------------
+    // INDEX 8 = STUDENT / USER CONTROL
+    // ------------------------------------------------------------
+    if (index == 8) {
       final user = AdminShellNavigation.detailUser.value;
-      if (user == null) {
-        _pages[6] ??= const AdminDashboardScreen();
-      } else if (!identical(_lastDetailUser, user)) {
-        _pages[6] = AdminUserControlScreen(user: user);
-        _lastDetailUser = user;
+
+      if (user != null) {
+        if (!identical(_lastDetailUser, user)) {
+          _pages[8] = AdminUserControlScreen(
+            user: user,
+          );
+
+          _lastDetailUser = user;
+        }
       }
-      return _pages[6]!;
+
+      // Safety fallback
+      _pages[8] ??= const AdminDashboardScreen();
+
+      return _pages[8]!;
     }
 
+    // ------------------------------------------------------------
+    // INDEX 0-7 = NORMAL MODULES
+    // ------------------------------------------------------------
     if (_pages[index] == null) {
       _pages[index] = _buildModule(index);
     }
+
     return _pages[index]!;
   }
 
   void _logout() {
     GetStorage().erase();
+
     Get.offAll(() => const AdminLoginScreen());
+
     Get.snackbar(
       'Logged Out',
       'Successfully signed out of Admin Center.',
@@ -113,16 +156,30 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
     switch (index) {
       case 0:
         return const AdminDashboardScreen();
+
       case 1:
         return const AdminTestManageScreen();
+
       case 2:
         return const AdimeStudentAttdance_screen();
+
       case 3:
         return const AdminTeacherAttendanceScreen();
+
       case 4:
         return const AdminFeesManageScreen();
+
       case 5:
         return const AdminFeedbackScreen();
+
+      // SECTION MERGE
+      case 6:
+        return const AdminSectionMergeScreen();
+
+      // FEE VERIFICATION
+      case 7:
+        return const AdminFeeVerificationScreen();
+
       default:
         return const SizedBox.shrink();
     }
@@ -149,6 +206,7 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
               size: size * .47,
             ),
           ),
+
           Positioned(
             right: size * .11,
             top: size * .10,
@@ -168,7 +226,9 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
 
   Widget _navItem(int index) {
     return Obx(() {
-      final selected = AdminShellNavigation.selectedIndex.value == index;
+      final selected =
+          AdminShellNavigation.selectedIndex.value == index;
+
       final item = modules[index];
 
       return Padding(
@@ -177,12 +237,19 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
           color: Colors.transparent,
           child: InkWell(
             borderRadius: BorderRadius.circular(13),
-            onTap: () => AdminShellNavigation.selectModule(index),
+            onTap: () {
+              AdminShellNavigation.selectModule(index);
+            },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 180),
-              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 11,
+                vertical: 10,
+              ),
               decoration: BoxDecoration(
-                color: selected ? navy : Colors.transparent,
+                color: selected
+                    ? navy
+                    : Colors.transparent,
                 borderRadius: BorderRadius.circular(13),
               ),
               child: Row(
@@ -199,17 +266,23 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
                     child: Icon(
                       item.icon,
                       size: 19,
-                      color: selected ? Colors.white : item.color,
+                      color: selected
+                          ? Colors.white
+                          : item.color,
                     ),
                   ),
+
                   const SizedBox(width: 10),
+
                   Expanded(
                     child: Text(
                       item.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.poppins(
-                        color: selected ? Colors.white : text,
+                        color: selected
+                            ? Colors.white
+                            : text,
                         fontSize: 12.5,
                         fontWeight: selected
                             ? FontWeight.w700
@@ -228,7 +301,10 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
 
   Widget _status() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: 10,
+      ),
       decoration: BoxDecoration(
         color: softSurface,
         borderRadius: BorderRadius.circular(13),
@@ -244,7 +320,9 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
               shape: BoxShape.circle,
             ),
           ),
+
           const SizedBox(width: 8),
+
           Text(
             'System live',
             style: GoogleFonts.poppins(
@@ -265,16 +343,27 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
         onTap: _logout,
         borderRadius: BorderRadius.circular(12),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+          padding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 11,
+          ),
           decoration: BoxDecoration(
             color: error.withValues(alpha: .07),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: error.withValues(alpha: .16)),
+            border: Border.all(
+              color: error.withValues(alpha: .16),
+            ),
           ),
           child: Row(
             children: [
-              const Icon(Icons.logout_rounded, color: error, size: 18),
+              const Icon(
+                Icons.logout_rounded,
+                color: error,
+                size: 18,
+              ),
+
               const SizedBox(width: 10),
+
               Text(
                 'Logout',
                 style: GoogleFonts.poppins(
@@ -295,20 +384,30 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
       width: 252,
       decoration: const BoxDecoration(
         color: surface,
-        border: Border(right: BorderSide(color: border)),
+        border: Border(
+          right: BorderSide(color: border),
+        ),
       ),
       child: SafeArea(
         right: false,
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
+              padding: const EdgeInsets.fromLTRB(
+                18,
+                20,
+                18,
+                18,
+              ),
               child: Row(
                 children: [
                   _logo(),
+
                   const SizedBox(width: 11),
+
                   Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
                     children: [
                       Text(
                         "Let's Speak",
@@ -318,6 +417,7 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
                           fontWeight: FontWeight.w800,
                         ),
                       ),
+
                       Text(
                         'Admin Portal',
                         style: GoogleFonts.poppins(
@@ -330,9 +430,19 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
                 ],
               ),
             ),
-            const Divider(height: 1, color: border),
+
+            const Divider(
+              height: 1,
+              color: border,
+            ),
+
             Padding(
-              padding: const EdgeInsets.fromLTRB(18, 20, 18, 9),
+              padding: const EdgeInsets.fromLTRB(
+                18,
+                20,
+                18,
+                9,
+              ),
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
@@ -346,20 +456,35 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
                 ),
               ),
             ),
+
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12),
                 children: [
-                  for (int i = 0; i < modules.length; i++) _navItem(i),
+                  for (int i = 0; i < modules.length; i++)
+                    _navItem(i),
                 ],
               ),
             ),
+
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+              padding: const EdgeInsets.fromLTRB(
+                12,
+                0,
+                12,
+                10,
+              ),
               child: _status(),
             ),
+
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 18),
+              padding: const EdgeInsets.fromLTRB(
+                12,
+                0,
+                12,
+                18,
+              ),
               child: _logoutButton(),
             ),
           ],
@@ -376,11 +501,18 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(18, 20, 10, 18),
+              padding: const EdgeInsets.fromLTRB(
+                18,
+                20,
+                10,
+                18,
+              ),
               child: Row(
                 children: [
                   _logo(),
+
                   const SizedBox(width: 11),
+
                   Expanded(
                     child: Text(
                       "Let's Speak\nAdmin Portal",
@@ -392,20 +524,40 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
                       ),
                     ),
                   ),
+
                   IconButton(
-                    onPressed: AdminShellNavigation.closeDrawer,
-                    icon: const Icon(Icons.close_rounded, color: secondaryText),
+                    onPressed:
+                        AdminShellNavigation.closeDrawer,
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      color: secondaryText,
+                    ),
                   ),
                 ],
               ),
             ),
-            const Divider(height: 1, color: border),
+
+            const Divider(
+              height: 1,
+              color: border,
+            ),
+
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(12, 18, 12, 10),
+                padding: const EdgeInsets.fromLTRB(
+                  12,
+                  18,
+                  12,
+                  10,
+                ),
                 children: [
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+                    padding: const EdgeInsets.fromLTRB(
+                      10,
+                      0,
+                      10,
+                      10,
+                    ),
                     child: Text(
                       'MANAGEMENT',
                       style: GoogleFonts.poppins(
@@ -416,13 +568,25 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
                       ),
                     ),
                   ),
-                  for (int i = 0; i < modules.length; i++) _navItem(i),
+
+                  for (int i = 0; i < modules.length; i++)
+                    _navItem(i),
                 ],
               ),
             ),
-            Padding(padding: const EdgeInsets.all(12), child: _status()),
+
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 18),
+              padding: const EdgeInsets.all(12),
+              child: _status(),
+            ),
+
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                12,
+                0,
+                12,
+                18,
+              ),
               child: _logoutButton(),
             ),
           ],
@@ -444,6 +608,7 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
           if (constraints.maxWidth >= 1000) {
             return const SizedBox.shrink();
           }
+
           return _drawer();
         },
       ),
@@ -455,15 +620,26 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
           return Row(
             children: [
               if (desktop) _sidebar(),
+
               Expanded(
                 child: Obx(
                   () => IndexedStack(
-                    index: AdminShellNavigation.selectedIndex.value,
+                    index:
+                        AdminShellNavigation.selectedIndex.value,
+
                     children: List<Widget>.generate(
-                      7,
-                      (i) => i == AdminShellNavigation.selectedIndex.value
-                          ? _pageAt(i)
-                          : (_pages[i] ?? const SizedBox.shrink()),
+                      9,
+                      (i) {
+                        if (i ==
+                            AdminShellNavigation
+                                .selectedIndex
+                                .value) {
+                          return _pageAt(i);
+                        }
+
+                        return _pages[i] ??
+                            const SizedBox.shrink();
+                      },
                     ),
                   ),
                 ),

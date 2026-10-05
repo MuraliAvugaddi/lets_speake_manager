@@ -220,66 +220,103 @@ class _AdimeStudentAttdance_screenState
 
     return Scaffold(
       backgroundColor: backgroundColor,
-      appBar: AppBar(
-        backgroundColor: cardColor,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        toolbarHeight: isWeb ? 72 : 62,
-        leading: IconButton(
-          tooltip: 'Menu',
-          onPressed: _openAdminDrawerOrBack,
-          icon: const Icon(Icons.menu_rounded, color: textColor, size: 23),
-        ),
-        titleSpacing: 0,
-        title: Row(
-          children: [
-            Container(
-              width: isWeb ? 40 : 36,
-              height: isWeb ? 40 : 36,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [deepNavy, navy]),
-                borderRadius: BorderRadius.circular(11),
-              ),
-              child: const Icon(
-                Icons.fact_check_rounded,
-                color: Colors.white,
-                size: 20,
-              ),
+      appBar: PreferredSize(
+        preferredSize: Size.fromHeight(isWeb ? 60 : 54),
+        child: Container(
+          height: isWeb ? 60 : 54,
+          decoration: const BoxDecoration(
+            color: cardColor,
+            border: Border(
+              bottom: BorderSide(color: borderColor, width: 1),
             ),
-            const SizedBox(width: 11),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Student Attendance',
-                  style: GoogleFonts.poppins(
-                    color: textColor,
-                    fontSize: isWeb ? 18 : 16,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                if (isWeb)
-                  Text(
-                    'Monitor daily attendance and student status',
-                    style: GoogleFonts.poppins(
-                      color: secondaryText,
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w500,
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: isWeb ? 58 : 50,
+                child: Center(
+                  child: IconButton(
+                    tooltip: 'Menu',
+                    onPressed: _openAdminDrawerOrBack,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 42,
+                      minHeight: 42,
+                    ),
+                    splashRadius: 20,
+                    icon: const Icon(
+                      Icons.menu_rounded,
+                      color: textColor,
+                      size: 25,
                     ),
                   ),
-              ],
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'Refresh attendance',
-            onPressed: isLoading ? null : fetchAttendanceData,
-            icon: const Icon(Icons.refresh_rounded, color: textColor, size: 22),
+                ),
+              ),
+              Container(
+                width: isWeb ? 38 : 34,
+                height: isWeb ? 38 : 34,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [deepNavy, navy],
+                  ),
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: const Icon(
+                  Icons.fact_check_rounded,
+                  color: Colors.white,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Student Attendance',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        color: textColor,
+                        fontSize: isWeb ? 18 : 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (isWeb)
+                      Text(
+                        'Monitor daily attendance and student status',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          color: secondaryText,
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: 'Refresh attendance',
+                onPressed: isLoading ? null : fetchAttendanceData,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(
+                  minWidth: 42,
+                  minHeight: 42,
+                ),
+                splashRadius: 20,
+                icon: const Icon(
+                  Icons.refresh_rounded,
+                  color: textColor,
+                  size: 23,
+                ),
+              ),
+              SizedBox(width: isWeb ? 8 : 4),
+            ],
           ),
-          const SizedBox(width: 8),
-        ],
+        ),
       ),
       body: SafeArea(
         child: Center(

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:get_storage/get_storage.dart';
-import 'package:socket_io_client/socket_io_client.dart' as IO; // Add socket client
+import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:lets_speake_manager/Api/ApiendPoints.dart';
 
 class AdminController extends GetxController {
@@ -19,13 +19,13 @@ class AdminController extends GetxController {
 
   final box = GetStorage();
   Timer? _pollingTimer;
-  late IO.Socket _socket; // Socket instance for instant updates
+  late IO.Socket _socket;
 
   @override
   void onInit() {
     super.onInit();
     fetchAllUsers(isRefresh: true);
-    _initSocketListener(); // 🚀 Setup instant real-time updates
+    _initSocketListener();
 
     // Safety fallback: poll every 30 seconds just in case a socket packet drops
     _pollingTimer = Timer.periodic(const Duration(seconds: 30), (_) {
@@ -33,10 +33,8 @@ class AdminController extends GetxController {
     });
   }
 
-  // 🚀 Instant real-time listener using your backend Socket.io
   void _initSocketListener() {
     try {
-      // Connect to your backend base URL (extracting domain from ApiEndpoints)
       final uri = Uri.parse(ApiEndpoints.baseUrl);
       final host = "${uri.scheme}://${uri.host}:${uri.port}";
 
@@ -47,13 +45,12 @@ class AdminController extends GetxController {
 
       _socket.onConnect((_) {
         debugPrint("🔌 Admin connected to Socket.io for instant updates");
-        // Join an admin room if your backend supports it
         _socket.emit('join_admin_room');
       });
 
-      // Listen for any user changes (registrations, access updates, deletions)
-      _socket.on('user_updated', (_) {
-        debugPrint("⚡ Real-time update received: Refreshing users instantly.");
+      // 🚀 Listen for real-time student registrations or updates
+      _socket.on('student_update', (_) {
+        debugPrint("⚡ Real-time student update received: Refreshing lists automatically.");
         fetchAllUsers(isRefresh: true, silent: true);
       });
 
@@ -69,7 +66,7 @@ class AdminController extends GetxController {
   @override
   void onClose() {
     _pollingTimer?.cancel();
-    _socket.dispose(); // Clean up socket connection
+    _socket.dispose();
     super.onClose();
   }
 
@@ -126,7 +123,6 @@ class AdminController extends GetxController {
     }
   }
 
-  // --- UPDATE ACCESS & LEARNING MODE ---
   Future<void> updateUserAccess(
     String userId,
     Map englishAccess,
