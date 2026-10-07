@@ -78,7 +78,6 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
           await box.write('token', data['token']);
           await box.write('user', data['user']);
 
-          // 🚀 Removed 'const' to fix the compilation error
           Get.offAll(() => Adime_home_screen());
 
           Get.snackbar(
@@ -200,7 +199,12 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _logoMark(78),
+            Image.asset(
+              'assets/images/blue icon.png',
+              width: 80,
+              height: 80,
+              fit: BoxFit.contain,
+            ),
             const SizedBox(height: 25),
             _brandTitle(fontSize: 46),
             const SizedBox(height: 5),
@@ -268,7 +272,12 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
   Widget _brandHeaderMobile() {
     return Row(
       children: [
-        _logoMark(58),
+        Image.asset(
+          'assets/images/blue icon.png',
+          width: 58,
+          height: 58,
+          fit: BoxFit.contain,
+        ),
         const SizedBox(width: 14),
         Expanded(
           child: Column(
@@ -585,50 +594,6 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
         color: logoYellow,
         borderRadius: BorderRadius.circular(20),
       ),
-    );
-  }
-
-  Widget _logoMark(double size) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: const BoxDecoration(color: logoNavy, shape: BoxShape.circle),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Text(
-            'LS',
-            style: GoogleFonts.poppins(
-              color: Colors.white,
-              fontSize: size * 0.32,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -2,
-            ),
-          ),
-          Positioned(
-            bottom: size * 0.16,
-            right: size * 0.18,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _dot(logoTeal, size * 0.10),
-                SizedBox(width: size * 0.035),
-                _dot(logoYellow, size * 0.10),
-                SizedBox(width: size * 0.035),
-                _dot(logoBlue, size * 0.10),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _dot(Color color, double size) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
     );
   }
 
