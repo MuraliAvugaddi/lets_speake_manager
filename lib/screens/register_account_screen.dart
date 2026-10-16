@@ -6,9 +6,8 @@ import 'package:get_storage/get_storage.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:lets_speake_manager/Api/ApiendPoints.dart';
+import 'package:lets_speake_manager/Api/api_headers.dart';
 import 'package:lets_speake_manager/Navigation/AdminShellNavigation.dart';
-
-
 
 class RegisterAccountScreen extends StatefulWidget {
   const RegisterAccountScreen({super.key});
@@ -89,12 +88,11 @@ class _RegisterAccountScreenState extends State<RegisterAccountScreen> {
   Future<void> fetchRegisteredStaff() async {
     if (!mounted) return;
     setState(() => isFetchingStaff = true);
-    final String? token = box.read('token');
 
     try {
       final response = await http.get(
         Uri.parse("${ApiEndpoints.baseUrl}/admin/teachers"),
-        headers: {"Authorization": "Bearer $token"},
+        headers: ApiHeaders.auth(),
       );
 
       if (!mounted) return;
@@ -105,6 +103,9 @@ class _RegisterAccountScreenState extends State<RegisterAccountScreen> {
           isFetchingStaff = false;
         });
       } else {
+        debugPrint(
+          "Fetch staff failed: ${response.statusCode} ${response.body}",
+        );
         setState(() => isFetchingStaff = false);
       }
     } catch (e) {
@@ -136,13 +137,23 @@ class _RegisterAccountScreenState extends State<RegisterAccountScreen> {
         ? selectedSection
         : "None";
 
+    // Staff accounts can only be created with an admin/manager login token.
+    if ((ApiHeaders.token ?? '').isEmpty) {
+      _message(
+        "Session expired",
+        "Please log out and log in again, then create the account.",
+        error: true,
+      );
+      return;
+    }
+
     if (!mounted) return;
     setState(() => isLoading = true);
 
     try {
       final response = await http.post(
         Uri.parse(ApiEndpoints.register),
-        headers: {"Content-Type": "application/json"},
+        headers: ApiHeaders.json(),
         body: jsonEncode({
           "name": name,
           "phone": phone,
@@ -157,7 +168,7 @@ class _RegisterAccountScreenState extends State<RegisterAccountScreen> {
 
       final data = jsonDecode(response.body);
 
-      if (response.statusCode == 201) {
+      if (response.statusCode == 201 || response.statusCode == 200) {
         _message(
           "Account created",
           "${selectedRole == "teacher" ? "Trainer" : "Manager"} account registered successfully.",
@@ -198,23 +209,23 @@ class _RegisterAccountScreenState extends State<RegisterAccountScreen> {
   }
 
   Future<void> deleteStaff(String staffId) async {
-    final String? token = box.read('token');
-
     try {
       final response = await http.delete(
-        Uri.parse("${ApiEndpoints.baseUrl}/users/$staffId"),
-        headers: {"Authorization": "Bearer $token"},
+        Uri.parse("${ApiEndpoints.users}/$staffId"),
+        headers: ApiHeaders.auth(),
       );
 
       if (response.statusCode == 200) {
         _message("Deleted", "Staff member removed successfully.");
         await fetchRegisteredStaff();
       } else {
-        _message(
-          "Delete failed",
-          "Could not delete this staff member.",
-          error: true,
-        );
+        String msg = "Could not delete this staff member.";
+        try {
+          final body = jsonDecode(response.body);
+          if (body is Map && body['message'] != null)
+            msg = body['message'].toString();
+        } catch (_) {}
+        _message("Delete failed", msg, error: true);
       }
     } catch (e) {
       debugPrint("Delete staff error: $e");

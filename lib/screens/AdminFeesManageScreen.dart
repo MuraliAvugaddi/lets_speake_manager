@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:get_storage/get_storage.dart';
 import 'package:lets_speake_manager/Api/ApiendPoints.dart';
+import 'package:lets_speake_manager/Api/api_headers.dart';
 import 'package:lets_speake_manager/Navigation/AdminShellNavigation.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -90,8 +91,8 @@ class _AdminFeesManageScreenState extends State<AdminFeesManageScreen>
     if (!silent) setState(() => isLoading = true);
     try {
       final responses = await Future.wait([
-        http.get(Uri.parse("${ApiEndpoints.baseUrl}/admin/all-students?mode=all&language=all&stage=all")),
-        http.get(Uri.parse(ApiEndpoints.feeHistory)),
+        http.get(Uri.parse("${ApiEndpoints.baseUrl}/admin/all-students?mode=all&language=all&stage=all"), headers: ApiHeaders.auth()),
+        http.get(Uri.parse(ApiEndpoints.feeHistory), headers: ApiHeaders.auth()),
       ]);
 
       if (responses[0].statusCode == 200) {
@@ -757,3 +758,4 @@ class _AdminFeesManageScreenState extends State<AdminFeesManageScreen>
     );
   }
 }
+

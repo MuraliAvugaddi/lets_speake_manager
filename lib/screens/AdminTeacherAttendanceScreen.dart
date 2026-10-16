@@ -7,7 +7,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:lets_speake_manager/Api/ApiendPoints.dart';
+import 'package:lets_speake_manager/Api/api_headers.dart';
 import 'package:lets_speake_manager/Navigation/AdminShellNavigation.dart';
+import 'package:lets_speake_manager/screens/AttendanceReportScreen.dart';
+import 'package:lets_speake_manager/screens/LeaderboardScreen.dart';
 import 'package:lets_speake_manager/screens/register_account_screen.dart';
 
 class AdminTeacherAttendanceScreen extends StatefulWidget {
@@ -115,12 +118,14 @@ class _AdminTeacherAttendanceScreenState
         Uri.parse(
           "${ApiEndpoints.baseUrl}/admin/teachers?mode=$queryMode&language=$queryLang&stage=$queryStage",
         ),
+        headers: ApiHeaders.auth(),
       );
 
       final attendanceResponse = await http.get(
         Uri.parse(
           "${ApiEndpoints.baseUrl}/admin/attendance?date=$dateStr&stage=$queryStage&language=$queryLang&mode=$queryMode&role=teacher",
         ),
+        headers: ApiHeaders.auth(),
       );
 
       if (response.statusCode == 200 && attendanceResponse.statusCode == 200) {
@@ -343,6 +348,14 @@ class _AdminTeacherAttendanceScreenState
               // Keep registration, date and refresh actions compact.
               _buildTrainerRegistrationButton(isWeb: isWeb),
 
+              IconButton(
+                tooltip: 'Leaderboard',
+                onPressed: () => Get.to(() => const LeaderboardScreen(role: 'teacher')),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 42, minHeight: 42),
+                splashRadius: 20,
+                icon: const Icon(Icons.emoji_events_rounded, color: Color(0xFFE3B21B), size: 23),
+              ),
               IconButton(
                 tooltip: 'Select date',
                 onPressed: () => _selectDate(context),
@@ -1053,8 +1066,64 @@ class _AdminTeacherAttendanceScreenState
               ),
             ),
           ),
+          SizedBox(
+            width: 30,
+            child: _reportMenu(
+              userId: (teacher['teacherId'] ?? '').toString(),
+              name: name,
+              role: 'teacher',
+            ),
+          ),
         ],
       ),
+    );
+  }
+
+  /// ⋮ menu → monthly calendar / yearly graph for this person
+  Widget _reportMenu({required String userId, required String name, required String role}) {
+    return PopupMenuButton<String>(
+      tooltip: 'Attendance report',
+      padding: EdgeInsets.zero,
+      icon: const Icon(Icons.more_vert_rounded, color: secondaryText, size: 20),
+      color: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      onSelected: (value) {
+        if (userId.isEmpty) return;
+        Get.to(() => AttendanceReportScreen(
+              userId: userId,
+              name: name,
+              role: role,
+              startWithYear: value == 'year',
+            ));
+      },
+      itemBuilder: (_) => [
+        PopupMenuItem(
+          value: 'month',
+          child: Row(
+            children: [
+              const Icon(Icons.calendar_month_rounded, color: navy, size: 18),
+              const SizedBox(width: 10),
+              Text(
+                'Monthly attendance',
+                style: GoogleFonts.poppins(color: textColor, fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'year',
+          child: Row(
+            children: [
+              const Icon(Icons.bar_chart_rounded, color: navy, size: 18),
+              const SizedBox(width: 10),
+              Text(
+                'Yearly graph',
+                style: GoogleFonts.poppins(color: textColor, fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -1079,3 +1148,4 @@ class _AdminTeacherAttendanceScreenState
     );
   }
 }
+

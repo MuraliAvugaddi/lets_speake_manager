@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:get_storage/get_storage.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:lets_speake_manager/Api/ApiendPoints.dart';
+import 'package:lets_speake_manager/Api/api_headers.dart';
 
 class AdminController extends GetxController {
   var usersList = <dynamic>[].obs;
@@ -41,6 +42,7 @@ class AdminController extends GetxController {
       _socket = IO.io(host, <String, dynamic>{
         'transports': ['websocket'],
         'autoConnect': true,
+        'auth': {'token': ApiHeaders.token ?? ''},
       });
 
       _socket.onConnect((_) {
@@ -50,7 +52,9 @@ class AdminController extends GetxController {
 
       // 🚀 Listen for real-time student registrations or updates
       _socket.on('student_update', (_) {
-        debugPrint("⚡ Real-time student update received: Refreshing lists automatically.");
+        debugPrint(
+          "⚡ Real-time student update received: Refreshing lists automatically.",
+        );
         fetchAllUsers(isRefresh: true, silent: true);
       });
 
@@ -70,7 +74,10 @@ class AdminController extends GetxController {
     super.onClose();
   }
 
-  Future<void> fetchAllUsers({bool isRefresh = false, bool silent = false}) async {
+  Future<void> fetchAllUsers({
+    bool isRefresh = false,
+    bool silent = false,
+  }) async {
     if (isRefresh) {
       if (!silent) isLoading.value = true;
       currentPage = 1;

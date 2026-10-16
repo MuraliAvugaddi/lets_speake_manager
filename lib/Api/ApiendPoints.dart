@@ -1,8 +1,7 @@
 class ApiEndpoints {
- //static const String baseUrl = "http://10.13.73.18:5000/api";
   static const String baseUrl =
-      "https://lets-talk-backend-o06t.onrender.com/api";
-      // "http://192.168.1.4:5001/api";
+      //   "https://lets-talk-backend-o06t.onrender.com/api";
+      "http://192.168.1.3:5000/api";
 
   // Auth Endpoints
   static const String login = "$baseUrl/login";
@@ -11,7 +10,8 @@ class ApiEndpoints {
   // User Management
   static const String users = "$baseUrl/users";
   static const String updateAccess = "$baseUrl/update-access";
-  static const String updateStudentStatus = "$baseUrl/admin/update-student-status";
+  static const String updateStudentStatus =
+      "$baseUrl/admin/update-student-status";
 
   // Section Merging Endpoints 🚀
   static const String sectionMerges = "$baseUrl/admin/section-merges";
@@ -21,7 +21,6 @@ class ApiEndpoints {
   static const String pendingFees = "$baseUrl/fee/pending-fees";
   static const String verifyFee = "$baseUrl/fee/verify-fee";
   static const String feeHistory = "$baseUrl/fee/history";
-
 
   // Attendance & Others
   static const String usersByStage = "$baseUrl/admin/users-by-stage";

@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 
 import 'package:lets_speake_manager/Api/ApiendPoints.dart';
+import 'package:lets_speake_manager/Api/api_headers.dart';
 import 'package:lets_speake_manager/Navigation/AdminShellNavigation.dart';
 
 class AdminFeeVerificationScreen extends StatefulWidget {
@@ -101,6 +102,7 @@ class _AdminFeeVerificationScreenState
       _socket = IO.io(host, <String, dynamic>{
         'transports': ['websocket'],
         'autoConnect': true,
+        'auth': {'token': ApiHeaders.token ?? ''},
       });
 
       _socket?.onConnect((_) {
@@ -135,7 +137,7 @@ class _AdminFeeVerificationScreenState
 
   Future<void> fetchPendingFees() async {
     try {
-      final response = await http.get(Uri.parse(ApiEndpoints.pendingFees));
+      final response = await http.get(Uri.parse(ApiEndpoints.pendingFees), headers: ApiHeaders.auth());
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (mounted) {
@@ -151,7 +153,7 @@ class _AdminFeeVerificationScreenState
 
   Future<void> fetchFeeHistory() async {
     try {
-      final response = await http.get(Uri.parse(ApiEndpoints.feeHistory));
+      final response = await http.get(Uri.parse(ApiEndpoints.feeHistory), headers: ApiHeaders.auth());
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (mounted) {
@@ -172,7 +174,7 @@ class _AdminFeeVerificationScreenState
     try {
       final response = await http.post(
         Uri.parse(ApiEndpoints.verifyFee),
-        headers: {'Content-Type': 'application/json'},
+        headers: ApiHeaders.json(),
         body: jsonEncode({'userId': userId, 'status': status}),
       );
 
@@ -883,3 +885,4 @@ class _AdminFeeVerificationScreenState
     );
   }
 }
+

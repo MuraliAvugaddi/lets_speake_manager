@@ -5,8 +5,11 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:lets_speake_manager/Api/ApiendPoints.dart';
+import 'package:lets_speake_manager/Api/api_headers.dart';
+import 'package:lets_speake_manager/Api/batch_slots.dart';
 import 'package:lets_speake_manager/Controllers/adminController.dart';
 import 'package:lets_speake_manager/Navigation/AdminShellNavigation.dart';
+import 'package:lets_speake_manager/screens/AttendanceReportScreen.dart';
 
 class AdminUserControlScreen extends StatefulWidget {
   final dynamic user;
@@ -44,6 +47,9 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> {
   late String selectedMode;
   late String selectedSection;
   late String selectedFeeStatus;
+  late String selectedBatch; // default timing (signup) — canonical label or ""
+  late Map<String, String> englishBatch; // per-stage timing, "" = use default
+  late Map<String, String> hindiBatch;
 
   bool isSaving = false;
   bool isLoadingAnalytics = true;
@@ -109,6 +115,10 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> {
         .toString()
         .toLowerCase();
 
+    selectedBatch = BatchSlots.labelOf(widget.user['batchTime']);
+    englishBatch = _readBatchMap(widget.user['englishBatch']);
+    hindiBatch = _readBatchMap(widget.user['hindiBatch']);
+
     for (var key in stageKeys) {
       englishAccess.putIfAbsent(key, () => false);
       hindiAccess.putIfAbsent(key, () => false);
@@ -117,14 +127,255 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> {
     _fetchStudentDeepAnalytics();
   }
 
+  Map<String, String> _readBatchMap(dynamic raw) {
+    final map = raw is Map ? raw : const {};
+    return {for (final k in stageKeys) k: BatchSlots.labelOf(map[k])};
+  }
+
+  /// Effective timing of one stage: its own timing, else the default (signup) timing
+  String _stageTiming(bool isEnglish, String key) {
+    final own = (isEnglish ? englishBatch : hindiBatch)[key] ?? '';
+    return own.isNotEmpty ? own : selectedBatch;
+  }
+
+  /// Timings already taken by OTHER enabled stages → label: "English Stage 1"
+  Map<String, String> _takenTimings({required bool isEnglish, required String key}) {
+    final taken = <String, String>{};
+    void scan(bool eng, Map<String, dynamic> access) {
+      for (final k in stageKeys) {
+        if (eng == isEnglish && k == key) continue;
+        if (access[k] != true) continue;
+        final t = _stageTiming(eng, k);
+        if (t.isNotEmpty) {
+          taken.putIfAbsent(t, () => '${eng ? 'English' : 'Hindi'} Stage ${k.replaceAll('stage', '')}');
+        }
+      }
+    }
+
+    scan(true, englishAccess);
+    scan(false, hindiAccess);
+    return taken;
+  }
+
+  void _showStageTimingPicker({
+    required bool isEnglish,
+    required String key,
+    required String stageTitle,
+    required void Function(String label) onPicked,
+  }) {
+    final taken = _takenTimings(isEnglish: isEnglish, key: key);
+    String temp = _stageTiming(isEnglish, key);
+    if (taken.containsKey(temp)) temp = '';
+
+    Get.dialog(
+      Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 24),
+        backgroundColor: cardBg,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: accentBlue.withOpacity(0.4), width: 1.2),
+        ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480, maxHeight: 640),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+            child: StatefulBuilder(
+              builder: (context, setDialogState) {
+                Widget tile(BatchSlot slot) {
+                  final usedBy = taken[slot.label];
+                  final bool disabled = usedBy != null;
+                  final bool chosen = temp == slot.label;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 7),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: disabled ? null : () => setDialogState(() => temp = slot.label),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 140),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: disabled
+                              ? const Color(0xFFF2F4F6)
+                              : chosen
+                                  ? accentBlue.withOpacity(0.10)
+                                  : surfaceSubtle,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: chosen ? accentBlue : borderColor,
+                            width: chosen ? 1.4 : 1,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 30,
+                              height: 30,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: chosen ? accentBlue : borderColor.withOpacity(0.45),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Text(
+                                '${slot.number}',
+                                style: GoogleFonts.poppins(
+                                  color: chosen ? Colors.white : secondaryText,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                slot.shortLabel,
+                                style: GoogleFonts.poppins(
+                                  color: disabled ? secondaryText.withOpacity(.6) : textColor,
+                                  fontSize: 12.5,
+                                  fontWeight: chosen ? FontWeight.w700 : FontWeight.w600,
+                                  decoration: disabled ? TextDecoration.lineThrough : null,
+                                ),
+                              ),
+                            ),
+                            if (disabled)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: alertRed.withOpacity(.10),
+                                  borderRadius: BorderRadius.circular(7),
+                                ),
+                                child: Text(
+                                  'Used by $usedBy',
+                                  style: GoogleFonts.poppins(
+                                    color: alertRed,
+                                    fontSize: 8.5,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              )
+                            else if (chosen)
+                              Icon(Icons.check_circle_rounded, color: accentBlue, size: 18),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }
+
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: accentBlue.withOpacity(0.10),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(Icons.schedule_rounded, color: accentBlue, size: 20),
+                        ),
+                        const SizedBox(width: 11),
+                        Expanded(
+                          child: Text(
+                            "Timing for $stageTitle",
+                            style: GoogleFonts.poppins(
+                              color: textColor,
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      "A student can't attend two stages at the same time, so timings used by other stages are blocked.",
+                      style: GoogleFonts.poppins(color: secondaryText, fontSize: 11, height: 1.4),
+                    ),
+                    const SizedBox(height: 12),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('MORNING',
+                                style: GoogleFonts.poppins(
+                                    color: secondaryText, fontSize: 8.5, fontWeight: FontWeight.w700, letterSpacing: .8)),
+                            const SizedBox(height: 5),
+                            ...BatchSlots.morning.map(tile),
+                            const SizedBox(height: 4),
+                            Text('EVENING',
+                                style: GoogleFonts.poppins(
+                                    color: secondaryText, fontSize: 8.5, fontWeight: FontWeight.w700, letterSpacing: .8)),
+                            const SizedBox(height: 5),
+                            ...BatchSlots.evening.map(tile),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () => Get.back(),
+                            child: Text(
+                              "Cancel",
+                              style: GoogleFonts.poppins(color: secondaryText, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: temp.isEmpty
+                                ? null
+                                : () {
+                                    Get.back();
+                                    onPicked(temp);
+                                  },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: accentBlue,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 11),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              elevation: 0,
+                            ),
+                            child: Text(
+                              "Set timing",
+                              style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 12.5),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+      barrierDismissible: false,
+    );
+  }
+
   Future<void> _fetchStudentDeepAnalytics() async {
     final String userId = (widget.user['_id'] ?? widget.user['id']).toString();
     if (mounted) setState(() => isLoadingAnalytics = true);
 
     try {
       final responses = await Future.wait([
-        http.get(Uri.parse("${ApiEndpoints.userAttendance}?userId=$userId")),
-        http.get(Uri.parse("${ApiEndpoints.userTestResults}?userId=$userId")),
+        http.get(
+          Uri.parse("${ApiEndpoints.userAttendance}?userId=$userId"),
+          headers: ApiHeaders.auth(),
+        ),
+        http.get(
+          Uri.parse("${ApiEndpoints.userTestResults}?userId=$userId"),
+          headers: ApiHeaders.auth(),
+        ),
       ]);
 
       if (responses[0].statusCode == 200) {
@@ -474,6 +725,7 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> {
     setState(() {
       for (var key in stageKeys) {
         accessMap[key] = enable;
+        if (!enable) (isEnglish ? englishBatch : hindiBatch)[key] = '';
       }
       if (!isEnglish && enable) {
         selectedSection = 'None';
@@ -497,13 +749,9 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> {
         selectedMode,
       );
 
-      final token = adminController.box.read('token');
       final response = await http.put(
         Uri.parse(ApiEndpoints.updateStudentStatus),
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer $token",
-        },
+        headers: ApiHeaders.json(),
         body: jsonEncode({
           "userId": userId,
           "feeStatus": selectedFeeStatus,
@@ -511,16 +759,47 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> {
               ? selectedSection
               : 'None',
           "mode": selectedMode,
+          "batchTime": selectedBatch,
+          "englishBatch": englishBatch,
+          "hindiBatch": hindiBatch,
         }),
       );
 
       if (response.statusCode == 200) {
+        // keep the cached list in sync so other screens show the new timing
+        final idx = adminController.usersList.indexWhere(
+          (u) => (u['_id'] ?? u['id']).toString() == userId,
+        );
+        if (idx != -1) {
+          final updated = Map<String, dynamic>.from(adminController.usersList[idx]);
+          updated['batchTime'] = selectedBatch;
+          updated['englishBatch'] = Map<String, String>.from(englishBatch);
+          updated['hindiBatch'] = Map<String, String>.from(hindiBatch);
+          updated['mode'] = selectedMode;
+          adminController.usersList[idx] = updated;
+        }
+
         Get.snackbar(
           "Changes Synchronized",
           "Student permissions & sections updated live.",
           backgroundColor: successGreen.withOpacity(0.95),
           colorText: Colors.white,
           icon: const Icon(Icons.check_circle_rounded, color: Colors.white),
+          snackPosition: SnackPosition.TOP,
+          margin: const EdgeInsets.all(16),
+          borderRadius: 14,
+        );
+      } else {
+        String msg = "Could not save changes (${response.statusCode}).";
+        try {
+          final body = jsonDecode(response.body);
+          if (body is Map && body['message'] != null) msg = body['message'].toString();
+        } catch (_) {}
+        Get.snackbar(
+          "Update Failed",
+          msg,
+          backgroundColor: alertRed.withOpacity(0.95),
+          colorText: Colors.white,
           snackPosition: SnackPosition.TOP,
           margin: const EdgeInsets.all(16),
           borderRadius: 14,
@@ -581,6 +860,15 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> {
           ),
         ),
         actions: [
+          IconButton(
+            tooltip: 'Attendance report',
+            onPressed: () => Get.to(() => AttendanceReportScreen(
+                  userId: (widget.user['_id'] ?? widget.user['id']).toString(),
+                  name: studentName,
+                  role: 'student',
+                )),
+            icon: Icon(Icons.insights_rounded, color: accentPurple),
+          ),
           if (isDesktop)
             Padding(
               padding: const EdgeInsets.only(right: 18),
@@ -826,6 +1114,10 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> {
                         icon: Icons.groups_rounded,
                         label: 'Section $selectedSection',
                       ),
+                    _heroChip(
+                      icon: Icons.schedule_rounded,
+                      label: BatchSlots.shortOf(selectedBatch, fallback: 'No timing'),
+                    ),
                   ],
                 ),
               ],
@@ -1236,6 +1528,12 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> {
               ],
             ),
           ),
+          const SizedBox(height: 14),
+          _settingBlock(
+            title: 'Default class timing',
+            subtitle: 'Chosen at signup. Used for any stage that has no timing of its own (set per stage below).',
+            child: _buildBatchSelector(),
+          ),
           if (selectedMode == 'online') ...[
             const SizedBox(height: 12),
             Container(
@@ -1285,6 +1583,113 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> {
           ],
         ],
       ),
+    );
+  }
+
+  Widget _buildBatchSelector() {
+    Widget chip(BatchSlot slot) {
+      final bool selected = selectedBatch == slot.label;
+      return InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          setState(() => selectedBatch = slot.label);
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: selected ? accentPurple : surfaceSubtle,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: selected ? accentPurple : borderColor),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 20,
+                height: 20,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: selected ? Colors.white.withOpacity(.18) : accentPurple.withOpacity(.10),
+                  shape: BoxShape.circle,
+                ),
+                child: Text(
+                  '${slot.number}',
+                  style: GoogleFonts.poppins(
+                    color: selected ? Colors.white : accentPurple,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                slot.shortLabel,
+                style: GoogleFonts.poppins(
+                  color: selected ? Colors.white : textColor,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (selectedBatch.isEmpty)
+          Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            decoration: BoxDecoration(
+              color: warningOrange.withOpacity(.14),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline_rounded, size: 14, color: Color(0xFF8B6A00)),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'No timing chosen yet. Select one and save.',
+                    style: GoogleFonts.poppins(
+                      color: const Color(0xFF8B6A00),
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        Text(
+          'MORNING',
+          style: GoogleFonts.poppins(
+            color: secondaryText,
+            fontSize: 8.5,
+            fontWeight: FontWeight.w700,
+            letterSpacing: .8,
+          ),
+        ),
+        const SizedBox(height: 5),
+        Wrap(spacing: 6, runSpacing: 6, children: BatchSlots.morning.map(chip).toList()),
+        const SizedBox(height: 9),
+        Text(
+          'EVENING',
+          style: GoogleFonts.poppins(
+            color: secondaryText,
+            fontSize: 8.5,
+            fontWeight: FontWeight.w700,
+            letterSpacing: .8,
+          ),
+        ),
+        const SizedBox(height: 5),
+        Wrap(spacing: 6, runSpacing: 6, children: BatchSlots.evening.map(chip).toList()),
+      ],
     );
   }
 
@@ -1580,26 +1985,54 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> {
                 final stageNumber = index + 1;
                 final isUnlocked = accessMap[key] == true;
 
+                final batchMap = isEnglish ? englishBatch : hindiBatch;
+                final stageTitle = '$title Stage $stageNumber';
+
+                void askTimingThenEnable({String? section}) {
+                  _showStageTimingPicker(
+                    isEnglish: isEnglish,
+                    key: key,
+                    stageTitle: stageTitle,
+                    onPicked: (label) {
+                      setState(() {
+                        if (section != null) selectedSection = section;
+                        accessMap[key] = true;
+                        batchMap[key] = label;
+                      });
+                    },
+                  );
+                }
+
                 return _buildStageAccessRow(
                   stageNumber: stageNumber,
                   isUnlocked: isUnlocked,
                   accentColor: accentColor,
+                  timingLabel: isUnlocked
+                      ? BatchSlots.shortOf(_stageTiming(isEnglish, key), fallback: 'Set timing')
+                      : null,
+                  timingIsOwn: (batchMap[key] ?? '').isNotEmpty,
+                  onTimingTap: () => _showStageTimingPicker(
+                    isEnglish: isEnglish,
+                    key: key,
+                    stageTitle: stageTitle,
+                    onPicked: (label) => setState(() => batchMap[key] = label),
+                  ),
                   onChanged: (value) {
                     if (value && selectedMode == 'online' && isEnglish) {
-                      _showSectionSelectionPopup('$title Stage $stageNumber', key, (
-                        chosenSec,
-                      ) {
-                        setState(() {
-                          selectedSection = chosenSec;
-                          accessMap[key] = true;
-                        });
+                      _showSectionSelectionPopup(stageTitle, key, (chosenSec) {
+                        askTimingThenEnable(section: chosenSec);
                       });
+                      return;
+                    }
+                    if (value) {
+                      askTimingThenEnable();
                       return;
                     }
 
                     HapticFeedback.selectionClick();
                     setState(() {
-                      accessMap[key] = value;
+                      accessMap[key] = false;
+                      batchMap[key] = '';
                       final anyEnglishLeft = englishAccess.values.any(
                         (v) => v == true,
                       );
@@ -1646,6 +2079,9 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> {
     required bool isUnlocked,
     required Color accentColor,
     required ValueChanged<bool> onChanged,
+    String? timingLabel,
+    bool timingIsOwn = false,
+    VoidCallback? onTimingTap,
   }) {
     return Material(
       color: Colors.transparent,
@@ -1700,13 +2136,53 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> {
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    Text(
-                      isUnlocked ? 'Enabled' : 'Locked',
-                      style: GoogleFonts.poppins(
-                        color: isUnlocked ? accentColor : secondaryText,
-                        fontSize: 8,
+                    if (isUnlocked && timingLabel != null)
+                      GestureDetector(
+                        onTap: onTimingTap,
+                        child: Container(
+                          margin: const EdgeInsets.only(top: 2),
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: timingIsOwn
+                                ? accentColor.withOpacity(.12)
+                                : warningOrange.withOpacity(.18),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.schedule_rounded,
+                                size: 10,
+                                color: timingIsOwn ? accentColor : const Color(0xFF8B6A00),
+                              ),
+                              const SizedBox(width: 3),
+                              Text(
+                                timingIsOwn ? timingLabel : '$timingLabel (default)',
+                                style: GoogleFonts.poppins(
+                                  color: timingIsOwn ? accentColor : const Color(0xFF8B6A00),
+                                  fontSize: 8,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(width: 2),
+                              Icon(
+                                Icons.edit_rounded,
+                                size: 9,
+                                color: timingIsOwn ? accentColor : const Color(0xFF8B6A00),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    else
+                      Text(
+                        isUnlocked ? 'Enabled' : 'Locked',
+                        style: GoogleFonts.poppins(
+                          color: isUnlocked ? accentColor : secondaryText,
+                          fontSize: 8,
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ),
