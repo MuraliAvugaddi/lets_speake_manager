@@ -28,7 +28,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
   static const Color logoNavyDark = Color(0xFF073B5F);
   static const Color logoBlue = Color(0xFF2E86C9);
   static const Color logoTeal = Color(0xFF19B8B8);
-  static const Color logoYellow = Color(0xFFF4C542);
+  static const Color logoYellow = Color.fromARGB(8, 244, 197, 66);
 
   static const Color pageBackground = Color(0xFFF6FAFC);
   static const Color softBlue = Color(0xFFEAF4F9);

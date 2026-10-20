@@ -21,6 +21,9 @@ import 'package:get/get.dart';
 /// 6 = Section Merge
 /// 7 = Fee Verification
 /// 8 = Student/User Detail
+/// 9 = Posters & Reels      (ENGAGE)
+/// 10 = Special Classes     (ENGAGE: rain day / principal class)
+/// 11 = Leaderboard         (ENGAGE)
 class AdminShellNavigation {
   AdminShellNavigation._();
 
@@ -29,11 +32,17 @@ class AdminShellNavigation {
 
   static const double desktopBreakpoint = 1000;
 
+  // ENGAGE modules (sidebar group below MANAGEMENT)
+  static const int postersIndex = 9;
+  static const int specialClassesIndex = 10;
+  static const int leaderboardIndex = 11;
+
   /// Currently selected main module.
   ///
-  /// 0-6 = normal modules
-  /// 7   = Fee Verification
-  /// 8   = Student/User Control
+  /// 0-6  = normal modules
+  /// 7    = Fee Verification
+  /// 8    = Student/User Control
+  /// 9-11 = Posters & Reels, Special Classes, Leaderboard
   static final RxInt selectedIndex = 0.obs;
 
   /// Selected student for User Control screen.

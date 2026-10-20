@@ -9,6 +9,7 @@ import 'package:lets_speake_manager/Api/api_headers.dart';
 import 'package:lets_speake_manager/Api/batch_slots.dart';
 import 'package:lets_speake_manager/Navigation/AdminShellNavigation.dart';
 import 'package:lets_speake_manager/screens/AttendanceReportScreen.dart';
+import 'package:lets_speake_manager/screens/AdminHolidayScreen.dart';
 import 'package:lets_speake_manager/screens/LeaderboardScreen.dart';
 
 class AdimeStudentAttdance_screen extends StatefulWidget {
@@ -60,6 +61,8 @@ class _AdimeStudentAttdance_screenState
   final TextEditingController searchController = TextEditingController();
   List<dynamic> combinedList = [];
   List<dynamic> otherBatchList = []; // joined a class outside their own batch
+  List<Map<String, dynamic>> batchSummary = []; // per timing: total / on time / late / absent / other
+  Map<String, dynamic>? _holiday; // 🏖 selected date is a holiday (from batch-summary)
   bool isLoading = false;
 
   final List<String> stages = [
@@ -124,11 +127,31 @@ class _AdimeStudentAttdance_screenState
           "${ApiEndpoints.adminAttendance}?date=$dateStr&stage=$stageParam&batchTime=$batchParam&mode=$modeParam&language=$lang&role=student";
       final visitorsUrl =
           "${ApiEndpoints.adminAttendance.replaceFirst(RegExp(r'/attendance$'), '/batch-visitors')}?date=$dateStr&stage=$stageParam&language=$lang";
+      final summaryUrl =
+          "${ApiEndpoints.adminAttendance.replaceFirst(RegExp(r'/attendance$'), '/batch-summary')}?date=$dateStr&stage=$stageParam&language=$lang&mode=$modeParam";
       final results = await Future.wait([
         http.get(Uri.parse(url), headers: ApiHeaders.auth()),
         http.get(Uri.parse(visitorsUrl), headers: ApiHeaders.auth()),
+        lang == "Club"
+            ? Future.value(http.Response('{"batches":[]}', 200))
+            : http.get(Uri.parse(summaryUrl), headers: ApiHeaders.auth()),
       ]);
       final response = results[0];
+      try {
+        final sm = results[2].statusCode == 200 ? jsonDecode(results[2].body) : null;
+        _holiday = (sm is Map && sm['holiday'] is Map) ? Map<String, dynamic>.from(sm['holiday']) : null;
+        final List bl = (sm is Map && sm['batches'] is List) ? sm['batches'] : [];
+        batchSummary = bl
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .where((b) {
+              final c = Map<String, dynamic>.from(b['counts'] ?? {});
+              return _n(c['total']) > 0 || _n(c['fromOther']) > 0;
+            })
+            .toList();
+      } catch (_) {
+        batchSummary = [];
+      }
       if (results[1].statusCode == 200) {
         final v = jsonDecode(results[1].body);
         otherBatchList = (v is Map && v['visitors'] is List)
@@ -316,6 +339,17 @@ class _AdimeStudentAttdance_screenState
                 ),
               ),
               IconButton(
+                tooltip: 'Holidays',
+                onPressed: () async {
+                  await Get.to(() => const AdminHolidayScreen());
+                  fetchAttendanceData(silent: true);
+                },
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 42, minHeight: 42),
+                splashRadius: 20,
+                icon: const Icon(Icons.beach_access_rounded, color: Color(0xFF7A5AF8), size: 22),
+              ),
+              IconButton(
                 tooltip: 'Leaderboard',
                 onPressed: () =>
                     Get.to(() => const LeaderboardScreen(role: 'student')),
@@ -354,8 +388,10 @@ class _AdimeStudentAttdance_screenState
                 _buildToolbar(isWeb: isWeb, isTablet: isTablet),
                 _buildFilterBar(isWeb: isWeb, isTablet: isTablet),
                 _buildCategoryTabs(isWeb: isWeb),
+                _buildHolidayBanner(isWeb: isWeb),
                 _buildMetrics(isWeb: isWeb),
                 _buildPracticeBar(isWeb: isWeb),
+                _buildBatchSummaryStrip(isWeb: isWeb),
                 _buildOtherBatchBanner(isWeb: isWeb),
                 Expanded(
                   child: _buildStudentContent(isWeb: isWeb, isTablet: isTablet),
@@ -859,6 +895,288 @@ class _AdimeStudentAttdance_screenState
     );
   }
 
+  String _fmtTime(dynamic iso) {
+    if (iso == null) return '';
+    try {
+      return DateFormat('hh:mm a').format(DateTime.parse(iso.toString()).toLocal());
+    } catch (_) {
+      return '';
+    }
+  }
+
+  int _n(dynamic v) {
+    if (v is int) return v;
+    if (v is double) return v.toInt();
+    return int.tryParse('${v ?? ''}') ?? 0;
+  }
+
+  // =====================================================================
+  // ⏰ BATCH-WISE SUMMARY STRIP — one chip per timing (attended / total),
+  // tap → on time / late / absent / from other timing / joined other timing
+  // =====================================================================
+  Widget _buildBatchSummaryStrip({required bool isWeb}) {
+    if (batchSummary.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: EdgeInsets.fromLTRB(isWeb ? 24 : 14, 0, isWeb ? 24 : 14, 10),
+      child: SizedBox(
+        height: 62,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: batchSummary.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 8),
+          itemBuilder: (context, i) {
+            final b = batchSummary[i];
+            final c = Map<String, dynamic>.from(b['counts'] ?? {});
+            final total = _n(c['total']);
+            final attended = _n(c['attended']);
+            final late = _n(c['late']) + _n(c['partial']);
+            final absent = _n(c['absent']);
+            final other = _n(c['fromOther']) + _n(c['elsewhere']);
+            return InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: () => _openBatchSheet(b),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: cardColor,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: borderColor),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.schedule_rounded, size: 13, color: navy),
+                        const SizedBox(width: 4),
+                        Text(
+                          BatchSlots.shortOf(b['batch'], fallback: 'No timing'),
+                          style: GoogleFonts.poppins(
+                            color: textColor,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '$attended/$total',
+                          style: GoogleFonts.poppins(
+                            color: teal,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '$late late • $absent absent${other > 0 ? ' • $other other timing' : ''}',
+                      style: GoogleFonts.poppins(
+                        color: secondaryText,
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  void _openBatchSheet(Map<String, dynamic> b) {
+    List<Map<String, dynamic>> listOf(String key) => ((b[key] as List?) ?? [])
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+    final c = Map<String, dynamic>.from(b['counts'] ?? {});
+    final label = BatchSlots.shortOf(b['batch'], fallback: 'No timing');
+
+    final sections = <List<dynamic>>[
+      ['On time', listOf('present'), success, Icons.check_circle_rounded],
+      ['Late', [...listOf('late'), ...listOf('partial')], const Color(0xFFC78B00), Icons.schedule_rounded],
+      ['Absent', listOf('absent'), error, Icons.cancel_rounded],
+      ['Came from another timing', listOf('fromOther'), blue, Icons.login_rounded],
+      ['Attended another timing (counted)', listOf('elsewhere'), navy, Icons.swap_horiz_rounded],
+    ];
+
+    Widget stat(String t, int v, Color col) => Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            decoration: BoxDecoration(
+              color: col.withOpacity(.10),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              children: [
+                Text(
+                  '$v',
+                  style: GoogleFonts.poppins(
+                    color: col,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                Text(
+                  t,
+                  style: GoogleFonts.poppins(color: secondaryText, fontSize: 9.5),
+                ),
+              ],
+            ),
+          ),
+        );
+
+    Get.bottomSheet(
+      Container(
+        constraints: BoxConstraints(maxHeight: Get.height * .82),
+        padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
+        decoration: const BoxDecoration(
+          color: cardColor,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: borderColor,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '$label batch',
+              style: GoogleFonts.poppins(
+                color: textColor,
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            Text(
+              '${DateFormat('d MMM yyyy').format(selectedDate)} • ${_n(c['attended'])} of ${_n(c['total'])} attended',
+              style: GoogleFonts.poppins(color: secondaryText, fontSize: 10.5),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                stat('On time', _n(c['present']), success),
+                const SizedBox(width: 6),
+                stat('Late', _n(c['late']) + _n(c['partial']), const Color(0xFFC78B00)),
+                const SizedBox(width: 6),
+                stat('Absent', _n(c['absent']), error),
+                const SizedBox(width: 6),
+                stat('Other', _n(c['fromOther']) + _n(c['elsewhere']), blue),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  for (final sec in sections)
+                    if ((sec[1] as List).isNotEmpty) ...[
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12, bottom: 6),
+                        child: Row(
+                          children: [
+                            Icon(sec[3] as IconData, size: 16, color: sec[2] as Color),
+                            const SizedBox(width: 6),
+                            Text(
+                              '${sec[0]} • ${(sec[1] as List).length}',
+                              style: GoogleFonts.poppins(
+                                color: sec[2] as Color,
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      for (final p in (sec[1] as List).cast<Map<String, dynamic>>())
+                        _batchPersonRow(p, sec[0] as String),
+                    ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      isScrollControlled: true,
+    );
+  }
+
+  Widget _batchPersonRow(Map<String, dynamic> p, String group) {
+    final name = (p['name'] ?? 'Student').toString();
+    final phone = (p['phone'] ?? '').toString();
+    final mins = _n(p['minutes']);
+    String detail;
+    if (group.startsWith('Came from')) {
+      detail = 'Own: ${BatchSlots.shortOf(p['ownBatch'], fallback: 'not set')}';
+    } else if (group.startsWith('Attended another')) {
+      detail = 'Joined ${BatchSlots.shortOf(p['joinedBatch'], fallback: 'another timing')}';
+    } else if (group == 'Absent') {
+      detail = 'Not joined';
+    } else {
+      detail = '$mins mins';
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 15,
+            backgroundColor: navy10,
+            child: Text(
+              name.isNotEmpty ? name[0].toUpperCase() : 'S',
+              style: GoogleFonts.poppins(
+                color: navy,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    color: textColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                if (phone.isNotEmpty)
+                  Text(
+                    phone,
+                    style: GoogleFonts.poppins(color: secondaryText, fontSize: 9.5),
+                  ),
+              ],
+            ),
+          ),
+          Text(
+            detail,
+            style: GoogleFonts.poppins(color: secondaryText, fontSize: 10.5),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// ⚠️ Students who joined a class outside their own batch time
   Widget _buildOtherBatchBanner({required bool isWeb}) {
     if (otherBatchList.isEmpty) return const SizedBox.shrink();
@@ -972,7 +1290,7 @@ class _AdimeStudentAttdance_screenState
                             ),
                           ),
                           Text(
-                            '${DateFormat('d MMM yyyy').format(selectedDate)} • not counted as attendance',
+                            '${DateFormat('d MMM yyyy').format(selectedDate)} • attendance counted, joined another timing',
                             style: GoogleFonts.poppins(
                               color: secondaryText,
                               fontSize: 10.5,
@@ -1116,6 +1434,137 @@ class _AdimeStudentAttdance_screenState
     );
   }
 
+  // 🏖 holiday banner for the selected date
+  Widget _buildHolidayBanner({required bool isWeb}) {
+    String? title = _holiday?['title']?.toString();
+    title ??= combinedList
+        .map((s) => (s['holiday'] ?? '').toString())
+        .firstWhere((t) => t.isNotEmpty, orElse: () => '');
+    if (title == null || title.isEmpty) return const SizedBox.shrink();
+    final who = (_holiday?['appliesTo'] ?? 'all').toString();
+    return Container(
+      width: double.infinity,
+      margin: EdgeInsets.fromLTRB(isWeb ? 24 : 14, 4, isWeb ? 24 : 14, 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1EDFF),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF7A5AF8).withOpacity(.3)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.beach_access_rounded, color: Color(0xFF7A5AF8), size: 20),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              '$title — holiday${who == 'trainers' ? ' (trainers only)' : ''}. Students who did not come are shown as Holiday, not Absent. Anyone who joined is still counted.',
+              style: GoogleFonts.poppins(color: const Color(0xFF4A3AA8), fontSize: 10.5, fontWeight: FontWeight.w600, height: 1.35),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// ⏱️ Every join / leave of today: "05:34 AM → 05:50 AM (16 min)"
+  void _showTimeline(String name, dynamic student) {
+    final List raw = student['sessions'] is List ? student['sessions'] : const [];
+    final bool isOnline = (student['userMode'] ?? student['mode'] ?? '').toString().toLowerCase() == 'online';
+    final String inTime = _fmtTime(student['joinedAt'] ?? student['firstJoinAt'] ?? student['markedAt']);
+    final int lateBy = _n(student['lateByMinutes']);
+    final int total = _n(student['totalMinutesSpent'] ?? student['totalMinutes']);
+    final String batch = BatchSlots.shortOf(
+      (student['studentBatch']?.toString().isNotEmpty == true) ? student['studentBatch'] : student['batchTime'],
+      fallback: '',
+    );
+
+    DateTime? parse(dynamic v) {
+      if (v == null) return null;
+      try {
+        return DateTime.parse(v.toString()).toLocal();
+      } catch (_) {
+        return null;
+      }
+    }
+
+    final rows = <Widget>[];
+    for (var i = 0; i < raw.length; i++) {
+      final m = raw[i] is Map ? raw[i] as Map : const {};
+      final a = parse(m['in']);
+      final b = parse(m['out']);
+      if (a == null) continue;
+      final mins = (b ?? DateTime.now()).difference(a).inMinutes;
+      rows.add(Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Row(
+          children: [
+            Container(
+              width: 24,
+              height: 24,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(color: navy.withOpacity(.10), shape: BoxShape.circle),
+              child: Text('${i + 1}', style: GoogleFonts.poppins(color: navy, fontSize: 10, fontWeight: FontWeight.w800)),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                '${DateFormat('hh:mm a').format(a)}  →  ${b == null ? 'still in class' : DateFormat('hh:mm a').format(b)}',
+                style: GoogleFonts.poppins(color: textColor, fontSize: 12.5, fontWeight: FontWeight.w600),
+              ),
+            ),
+            Text('$mins min', style: GoogleFonts.poppins(color: secondaryText, fontSize: 11, fontWeight: FontWeight.w600)),
+          ],
+        ),
+      ));
+    }
+
+    Get.bottomSheet(
+      Container(
+        padding: const EdgeInsets.fromLTRB(18, 14, 18, 22),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(width: 40, height: 4, decoration: BoxDecoration(color: borderColor, borderRadius: BorderRadius.circular(4))),
+              ),
+              const SizedBox(height: 14),
+              Text(name, style: GoogleFonts.poppins(color: textColor, fontSize: 16, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 2),
+              Text(
+                [
+                  if (batch.isNotEmpty) 'Class $batch',
+                  if (inTime.isNotEmpty) '${isOnline ? 'First joined' : 'GPS check-in'} $inTime',
+                  lateBy > 0 ? '$lateBy min late' : 'on time',
+                  if (isOnline) '$total min in class',
+                ].join(' • '),
+                style: GoogleFonts.poppins(color: lateBy > 0 ? const Color(0xFFC78B00) : success, fontSize: 11.5, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 14),
+              if (!isOnline)
+                Text('Offline class — attendance is the GPS check-in time (minutes are not counted).',
+                    style: GoogleFonts.poppins(color: secondaryText, fontSize: 11.5))
+              else if (rows.isEmpty)
+                Text('No join/leave details for this day.', style: GoogleFonts.poppins(color: secondaryText, fontSize: 11.5))
+              else ...[
+                Text('In class', style: GoogleFonts.poppins(color: secondaryText, fontSize: 11, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                ...rows,
+              ],
+            ],
+          ),
+        ),
+      ),
+      isScrollControlled: true,
+    );
+  }
+
   void _showPracticeInfo(String name, dynamic student) {
     final bool practiced = student['practiced'] == true;
     String detail = '$name has not done speaking practice in this class today.';
@@ -1130,9 +1579,13 @@ class _AdimeStudentAttdance_screenState
           ).format(DateTime.parse(at.toString()).toLocal());
         } catch (_) {}
       }
+      final int rating = _n(student['practiceRating']);
+      final String note = (student['practiceNote'] ?? '').toString().trim();
       detail =
           '$name practiced${time.isNotEmpty ? ' at $time' : ''}'
-          '${trainer.isNotEmpty ? ' with $trainer' : ''}.';
+          '${trainer.isNotEmpty ? ' with $trainer' : ''}.'
+          '${rating > 0 ? '\nRating: ${'★' * rating}${'☆' * (5 - rating)} ($rating/5)' : '\nNot rated yet.'}'
+          '${note.isNotEmpty ? '\nNote: $note' : ''}';
     }
     Get.snackbar(
       practiced ? 'Speaking practice done' : 'Not practiced yet',
@@ -1141,7 +1594,7 @@ class _AdimeStudentAttdance_screenState
       colorText: Colors.white,
       snackPosition: SnackPosition.BOTTOM,
       margin: const EdgeInsets.all(14),
-      duration: const Duration(seconds: 3),
+      duration: const Duration(seconds: 5),
     );
   }
 
@@ -1420,10 +1873,19 @@ class _AdimeStudentAttdance_screenState
     );
     final String lang = (student['language'] ?? 'English').toString();
     final bool practiced = student['practiced'] == true;
+    final int rating = _n(student['practiceRating']);
+    // ⏱️ First join (online) / GPS check-in time (offline)
+    final String inTime = _fmtTime(student['joinedAt'] ?? student['firstJoinAt'] ?? student['markedAt']);
+    final bool liveNow = student['inClassNow'] == true;
+    // ⏰ minutes after the on-time limit (class start + 7 min)
+    final int lateBy = _n(student['lateByMinutes']);
+    final String arrival = inTime.isEmpty ? '' : (lateBy > 0 ? ' • ${lateBy}m late' : ' • on time');
 
     Color statusColor = success;
     if (status == 'Partial' || status == 'Late') {
       statusColor = const Color(0xFFC78B00);
+    } else if (status == 'Holiday') {
+      statusColor = const Color(0xFF7A5AF8);
     } else if (status == 'Absent') {
       statusColor = error;
     }
@@ -1488,11 +1950,15 @@ class _AdimeStudentAttdance_screenState
                         ),
                       ),
                     ),
-                    if ((student['otherBatchJoin'] ?? '')
-                        .toString()
-                        .isNotEmpty) ...[
+                    if (student['otherBatch'] == true ||
+                        (student['otherBatchJoin'] ?? '')
+                            .toString()
+                            .isNotEmpty) ...[
                       const SizedBox(width: 5),
-                      _smallBadge('Other batch', error),
+                      _smallBadge(
+                        'Joined ${BatchSlots.shortOf(student['joinedBatch'] ?? student['otherBatchJoin'], fallback: 'other timing')}',
+                        const Color(0xFFC78B00),
+                      ),
                     ],
                     const SizedBox(width: 5),
                     _smallBadge(lang, navy),
@@ -1539,7 +2005,9 @@ class _AdimeStudentAttdance_screenState
                             ),
                             const SizedBox(width: 3),
                             Text(
-                              practiced ? 'Practiced' : 'No practice',
+                              practiced
+                                  ? (rating > 0 ? 'Practiced ★$rating' : 'Practiced')
+                                  : 'No practice',
                               style: GoogleFonts.poppins(
                                 color: practiced ? success : secondaryText,
                                 fontSize: 7.5,
@@ -1553,7 +2021,10 @@ class _AdimeStudentAttdance_screenState
                   ],
                 ),
                 const SizedBox(height: 6),
-                Row(
+                InkWell(
+                  borderRadius: BorderRadius.circular(6),
+                  onTap: inTime.isEmpty ? null : () => _showTimeline(name, student),
+                  child: Row(
                   children: [
                     _smallBadge(mode, modeColor),
                     const SizedBox(width: 6),
@@ -1569,7 +2040,13 @@ class _AdimeStudentAttdance_screenState
                           const SizedBox(width: 3),
                           Flexible(
                             child: Text(
-                              isOnline ? '$totalMins/90m • $batch' : batch,
+                              (isOnline ? '$totalMins/90m • $batch' : batch) +
+                                  (inTime.isNotEmpty
+                                      ? (isOnline ? ' • In $inTime' : ' • GPS $inTime')
+                                      : '') +
+                                  arrival +
+                                  (status == 'Holiday' ? ' • ${student['holiday'] ?? 'Holiday'}' : '') +
+                                  (liveNow ? ' • Live' : ''),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: GoogleFonts.poppins(
@@ -1582,7 +2059,12 @@ class _AdimeStudentAttdance_screenState
                         ],
                       ),
                     ),
+                    if (inTime.isNotEmpty) ...[
+                      const SizedBox(width: 4),
+                      const Icon(Icons.timeline_rounded, size: 13, color: secondaryText),
+                    ],
                   ],
+                ),
                 ),
               ],
             ),

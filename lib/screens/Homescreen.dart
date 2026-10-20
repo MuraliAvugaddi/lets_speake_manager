@@ -28,6 +28,12 @@ import 'package:lets_speake_manager/screens/AdminUserControlScreen.dart';
 
 import 'package:lets_speake_manager/screens/LoginScreen.dart';
 
+import 'package:lets_speake_manager/screens/AdminPromoScreen.dart';
+
+import 'package:lets_speake_manager/screens/AdminSpecialClassScreen.dart';
+
+import 'package:lets_speake_manager/screens/LeaderboardScreen.dart';
+
 class Adime_home_screen extends StatefulWidget {
   const Adime_home_screen({super.key});
 
@@ -60,6 +66,7 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
 
   static const List<_AdminModule> modules = [
     _AdminModule(
+      index: 0,
       title: 'Students',
       subtitle: 'Access, accounts & analytics',
       icon: Icons.people_alt_rounded,
@@ -67,6 +74,7 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
     ),
 
     _AdminModule(
+      index: 1,
       title: 'Tests',
       subtitle: 'Questions, publishing & results',
       icon: Icons.assignment_rounded,
@@ -74,6 +82,7 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
     ),
 
     _AdminModule(
+      index: 2,
       title: 'Attendance',
       subtitle: 'Student daily attendance',
       icon: Icons.fact_check_rounded,
@@ -81,6 +90,7 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
     ),
 
     _AdminModule(
+      index: 3,
       title: 'Trainer Attendance',
       subtitle: 'Teacher attendance monitor',
       icon: Icons.co_present_rounded,
@@ -88,6 +98,7 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
     ),
 
     _AdminModule(
+      index: 4,
       title: 'Fees',
       subtitle: 'Fee status & reminders',
       icon: Icons.account_balance_wallet_rounded,
@@ -95,6 +106,7 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
     ),
 
     _AdminModule(
+      index: 5,
       title: 'Feedback',
       subtitle: 'Reviews & student feedback',
       icon: Icons.rate_review_rounded,
@@ -103,6 +115,7 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
 
     // SECTION MERGE
     _AdminModule(
+      index: 6,
       title: 'Section Merge',
       subtitle: 'Merge & manage sections',
       icon: Icons.merge_type_rounded,
@@ -111,6 +124,7 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
 
     // FEE VERIFICATION
     _AdminModule(
+      index: 7,
       title: 'Fee Verification',
       subtitle: 'Verify tuition payments',
       icon: Icons.verified_rounded,
@@ -118,13 +132,42 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
     ),
   ];
 
+  // ENGAGE — screens for announcements, special days and rankings
+  // (index 8 stays reserved for Student/User Control)
+  static const List<_AdminModule> engageModules = [
+    _AdminModule(
+      index: 9,
+      title: 'Posters & Reels',
+      subtitle: 'Popup on the student home screen',
+      icon: Icons.perm_media_rounded,
+      color: Color(0xFFD6336C),
+    ),
+    _AdminModule(
+      index: 10,
+      title: 'Special Classes',
+      subtitle: 'Rain day online • Principal class',
+      icon: Icons.campaign_rounded,
+      color: Color(0xFF7B2FF7),
+    ),
+    _AdminModule(
+      index: 11,
+      title: 'Leaderboard',
+      subtitle: 'Best trainers, students & top rated',
+      icon: Icons.emoji_events_rounded,
+      color: Color(0xFFE3B21B),
+    ),
+  ];
+
   // ============================================================
   // PAGES
-  // 0-7 = modules
-  // 8   = Student/User Control
+  // 0-7  = management modules
+  // 8    = Student/User Control
+  // 9-11 = engage modules
   // ============================================================
 
-  final List<Widget?> _pages = List<Widget?>.filled(9, null);
+  static const int pageCount = 12;
+
+  final List<Widget?> _pages = List<Widget?>.filled(pageCount, null);
 
   dynamic _lastDetailUser;
 
@@ -155,7 +198,7 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
     }
 
     // ------------------------------------------------------------
-    // INDEX 0-7 = NORMAL MODULES
+    // INDEX 0-7, 9-11 = NORMAL MODULES
     // ------------------------------------------------------------
 
     if (_pages[index] == null) {
@@ -217,6 +260,16 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
       case 7:
         return const AdminFeeVerificationScreen();
 
+      // ENGAGE
+      case 9:
+        return const AdminPromoScreen(embedded: true);
+
+      case 10:
+        return const AdminSpecialClassScreen(embedded: true);
+
+      case 11:
+        return const LeaderboardScreen(embedded: true, role: 'student');
+
       default:
         return const SizedBox.shrink();
     }
@@ -226,11 +279,10 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
   // NAVIGATION ITEM
   // ============================================================
 
-  Widget _navItem(int index) {
+  Widget _navItem(_AdminModule item) {
+    final index = item.index;
     return Obx(() {
       final selected = AdminShellNavigation.selectedIndex.value == index;
-
-      final item = modules[index];
 
       return Padding(
         padding: const EdgeInsets.only(bottom: 5),
@@ -289,6 +341,21 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
         ),
       );
     });
+  }
+
+  Widget _groupTitle(String title, {EdgeInsets padding = const EdgeInsets.fromLTRB(10, 14, 10, 9)}) {
+    return Padding(
+      padding: padding,
+      child: Text(
+        title,
+        style: GoogleFonts.poppins(
+          color: secondaryText,
+          fontSize: 9.5,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.1,
+        ),
+      ),
+    );
   }
 
   // ============================================================
@@ -441,7 +508,9 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
               child: ListView(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 children: [
-                  for (int i = 0; i < modules.length; i++) _navItem(i),
+                  for (final m in modules) _navItem(m),
+                  _groupTitle('ENGAGE'),
+                  for (final m in engageModules) _navItem(m),
                 ],
               ),
             ),
@@ -527,7 +596,9 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
                     ),
                   ),
 
-                  for (int i = 0; i < modules.length; i++) _navItem(i),
+                  for (final m in modules) _navItem(m),
+                  _groupTitle('ENGAGE'),
+                  for (final m in engageModules) _navItem(m),
                 ],
               ),
             ),
@@ -585,7 +656,7 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
                   () => IndexedStack(
                     index: AdminShellNavigation.selectedIndex.value,
 
-                    children: List<Widget>.generate(9, (i) {
+                    children: List<Widget>.generate(pageCount, (i) {
                       if (i == AdminShellNavigation.selectedIndex.value) {
                         return _pageAt(i);
                       }
@@ -608,12 +679,14 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
 // ================================================================
 
 class _AdminModule {
+  final int index; // page index in the IndexedStack
   final String title;
   final String subtitle;
   final IconData icon;
   final Color color;
 
   const _AdminModule({
+    required this.index,
     required this.title,
     required this.subtitle,
     required this.icon,

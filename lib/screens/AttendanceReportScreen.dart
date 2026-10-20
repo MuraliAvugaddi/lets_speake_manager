@@ -7,7 +7,8 @@ import 'package:lets_speake_manager/Api/ApiendPoints.dart';
 import 'package:lets_speake_manager/Api/api_headers.dart';
 import 'package:lets_speake_manager/Api/batch_slots.dart';
 
-/// Monthly calendar + yearly graph of one person's attendance.
+/// Attendance (Monthly calendar • 3 months • 6 months • Yearly graph)
+/// + for students: trainer's speaking-practice ratings (day & stage wise) and test results.
 /// Works for trainers (salary) and students (progress).
 ///   Get.to(() => AttendanceReportScreen(userId: id, name: 'Venkat', role: 'teacher'));
 class AttendanceReportScreen extends StatefulWidget {
@@ -53,7 +54,9 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
     'July', 'August', 'September', 'October', 'November', 'December',
   ];
 
-  late bool showYear;
+  String period = 'month'; // month | 3m | 6m | year
+  bool get showYear => period == 'year';
+  bool get isRange => period == '3m' || period == '6m';
   late int year;
   late int month;
 
@@ -69,7 +72,7 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
     final now = DateTime.now();
     year = now.year;
     month = now.month;
-    showYear = widget.startWithYear;
+    period = widget.startWithYear ? 'year' : 'month';
     _load();
   }
 
@@ -81,7 +84,7 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
     try {
       final res = await http.get(
         Uri.parse(
-          "${ApiEndpoints.baseUrl}/attendance-report?userId=${widget.userId}&year=$year&month=$month",
+          "${ApiEndpoints.baseUrl}/attendance-report?userId=${widget.userId}&year=$year&month=$month&range=$period",
         ),
         headers: ApiHeaders.auth(),
       );
@@ -240,23 +243,24 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
                   else if (errorText != null)
                     _errorBox()
                   else if (report != null) ...[
-                    _summaryCards(
-                      Map<String, dynamic>.from(
-                        showYear ? report!['yearTotals'] : report!['monthSummary'],
-                      ),
-                      isWeb: isWeb,
-                    ),
+                    _summaryCards(_totals(), isWeb: isWeb),
                     const SizedBox(height: 12),
-                    if (isTrainer)
-                      _payrollCard(
-                        Map<String, dynamic>.from(
-                          showYear ? report!['yearTotals'] : report!['monthSummary'],
-                        ),
-                      ),
+                    if (isTrainer) _payrollCard(_totals()),
                     if (isTrainer) const SizedBox(height: 12),
-                    if (showYear) _yearChart() else _calendar(isWeb: isWeb),
-                    const SizedBox(height: 12),
+                    if (showYear)
+                      _yearChart()
+                    else if (isRange)
+                      _yearChart(source: 'rangeMonths')
+                    else
+                      _calendar(isWeb: isWeb),
+                    const SizedBox(height: 10),
                     _legend(),
+                    if (!isTrainer) ...[
+                      const SizedBox(height: 16),
+                      _practiceCard(isWeb: isWeb),
+                      const SizedBox(height: 12),
+                      _testsCard(isWeb: isWeb),
+                    ],
                   ],
                 ],
               ),
@@ -286,13 +290,13 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon, size: 16, color: selected ? Colors.white : secondaryText),
-                const SizedBox(width: 6),
+                Icon(icon, size: 15, color: selected ? Colors.white : secondaryText),
+                const SizedBox(width: 4),
                 Text(
                   label,
                   style: GoogleFonts.poppins(
                     color: selected ? Colors.white : secondaryText,
-                    fontSize: 11.5,
+                    fontSize: 10.5,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -312,9 +316,13 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
       ),
       child: Row(
         children: [
-          seg('Monthly', Icons.calendar_month_rounded, !showYear, () => setState(() => showYear = false)),
+          seg('Monthly', Icons.calendar_month_rounded, period == 'month', () => _setPeriod('month')),
           const SizedBox(width: 4),
-          seg('Yearly', Icons.bar_chart_rounded, showYear, () => setState(() => showYear = true)),
+          seg('3 Months', Icons.date_range_rounded, period == '3m', () => _setPeriod('3m')),
+          const SizedBox(width: 4),
+          seg('6 Months', Icons.event_note_rounded, period == '6m', () => _setPeriod('6m')),
+          const SizedBox(width: 4),
+          seg('Yearly', Icons.bar_chart_rounded, period == 'year', () => _setPeriod('year')),
         ],
       ),
     );
@@ -323,7 +331,11 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
   Widget _periodNavigator() {
     final now = DateTime.now();
     final canGoNext = showYear ? year < now.year : (year * 12 + month) < (now.year * 12 + now.month);
-    final label = showYear ? '$year' : '${monthNames[month - 1]} $year';
+    final label = showYear
+        ? '$year'
+        : isRange
+            ? (report?['rangeLabel'] ?? '${monthNames[month - 1]} $year').toString()
+            : '${monthNames[month - 1]} $year';
 
     Widget arrow(IconData icon, bool enabled, VoidCallback onTap) {
       return Material(
@@ -776,9 +788,9 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
   // =========================================================
   // YEARLY GRAPH (stacked bars, no chart package needed)
   // =========================================================
-  Widget _yearChart() {
+  Widget _yearChart({String source = 'yearSummary'}) {
     final months = List<Map<String, dynamic>>.from(
-      (report!['yearSummary'] as List).map((e) => Map<String, dynamic>.from(e)),
+      ((report![source] ?? report!['yearSummary']) as List).map((e) => Map<String, dynamic>.from(e)),
     );
     int n(Map<String, dynamic> m, String k) => (m[k] as num?)?.toInt() ?? 0;
     final maxDays = months.fold<int>(0, (mx, m) => n(m, 'workingDays') > mx ? n(m, 'workingDays') : mx);
@@ -819,8 +831,9 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
                         ? null
                         : () {
                             setState(() {
+                              if (m['year'] != null) year = n(m, 'year');
                               month = n(m, 'month');
-                              showYear = false;
+                              period = 'month';
                             });
                             _load();
                           },
@@ -896,6 +909,320 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
           }),
         ],
       ),
+    );
+  }
+
+  // ---------------------------------------------------------
+  // period helpers
+  // ---------------------------------------------------------
+  void _setPeriod(String p) {
+    if (period == p) return;
+    setState(() => period = p);
+    _load();
+  }
+
+  Map<String, dynamic> _totals() {
+    final r = report!;
+    final raw = showYear ? r['yearTotals'] : (isRange ? (r['rangeTotals'] ?? r['monthSummary']) : r['monthSummary']);
+    return Map<String, dynamic>.from(raw as Map);
+  }
+
+  String get _periodWord => showYear ? 'this year' : (isRange ? 'in these months' : 'this month');
+
+  static const Color starColor = Color(0xFFF5B83D);
+
+  Widget _stars(double rating, {double size = 14}) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: List.generate(5, (i) {
+          final full = rating >= i + 1;
+          final half = !full && rating > i;
+          return Icon(
+            full ? Icons.star_rounded : (half ? Icons.star_half_rounded : Icons.star_outline_rounded),
+            color: starColor,
+            size: size,
+          );
+        }),
+      );
+
+  String _stageText(String stage) => stage.replaceAll('stage', 'Stage ');
+
+  String _dateTime(dynamic iso, {bool withTime = true}) {
+    final d = DateTime.tryParse('${iso ?? ''}')?.toLocal();
+    if (d == null) return '';
+    const m = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final h = d.hour % 12 == 0 ? 12 : d.hour % 12;
+    final t = '$h:${d.minute.toString().padLeft(2, '0')} ${d.hour >= 12 ? 'PM' : 'AM'}';
+    return withTime ? '${d.day} ${m[d.month - 1]} ${d.year}, $t' : '${d.day} ${m[d.month - 1]} ${d.year}';
+  }
+
+  Widget _sectionCard({required IconData icon, required Color color, required String title, required String subtitle, Widget? trailing, required List<Widget> children}) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(color: color.withOpacity(.12), borderRadius: BorderRadius.circular(10)),
+                child: Icon(icon, color: color, size: 19),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: GoogleFonts.poppins(color: textColor, fontSize: 13.5, fontWeight: FontWeight.w700)),
+                    Text(subtitle, style: GoogleFonts.poppins(color: secondaryText, fontSize: 9.5)),
+                  ],
+                ),
+              ),
+              if (trailing != null) trailing,
+            ],
+          ),
+          const SizedBox(height: 12),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  Widget _emptyLine(String text) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        decoration: BoxDecoration(color: softSurface, borderRadius: BorderRadius.circular(12)),
+        child: Text(text, textAlign: TextAlign.center, style: GoogleFonts.poppins(color: secondaryText, fontSize: 11)),
+      );
+
+  // =========================================================
+  // 🎤 SPEAKING PRACTICE (trainer ratings, day + stage wise)
+  // =========================================================
+  Widget _practiceCard({required bool isWeb}) {
+    final p = Map<String, dynamic>.from((report!['practice'] ?? const {}) as Map);
+    final count = (p['count'] as num?)?.toInt() ?? 0;
+    final rated = (p['rated'] as num?)?.toInt() ?? 0;
+    final avg = (p['averageRating'] as num?)?.toDouble() ?? 0;
+    final byStage = ((p['byStage'] ?? const []) as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    final days = ((p['days'] ?? const []) as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+
+    return _sectionCard(
+      icon: Icons.record_voice_over_rounded,
+      color: teal,
+      title: 'Speaking practice',
+      subtitle: 'Trainer ratings $_periodWord • day wise and stage wise',
+      trailing: count == 0
+          ? null
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(avg > 0 ? avg.toStringAsFixed(1) : '–',
+                        style: GoogleFonts.poppins(color: textColor, fontSize: 18, fontWeight: FontWeight.w800)),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.star_rounded, color: starColor, size: 20),
+                  ],
+                ),
+                Text('$count practiced • $rated rated',
+                    style: GoogleFonts.poppins(color: secondaryText, fontSize: 9.5)),
+              ],
+            ),
+      children: count == 0
+          ? [_emptyLine('No speaking practice $_periodWord yet.')]
+          : [
+              // stage wise
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: byStage.map((s) {
+                  final a = (s['averageRating'] as num?)?.toDouble() ?? 0;
+                  return Container(
+                    padding: const EdgeInsets.fromLTRB(10, 8, 12, 8),
+                    decoration: BoxDecoration(
+                      color: softSurface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: borderColor),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('${s['language']} • ${_stageText((s['stage'] ?? '').toString())}',
+                            style: GoogleFonts.poppins(color: textColor, fontSize: 11, fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 2),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _stars(a, size: 13),
+                            const SizedBox(width: 6),
+                            Text(a > 0 ? a.toStringAsFixed(1) : 'not rated',
+                                style: GoogleFonts.poppins(color: secondaryText, fontSize: 10, fontWeight: FontWeight.w600)),
+                            Text('  •  ${s['count']}×',
+                                style: GoogleFonts.poppins(color: secondaryText, fontSize: 10)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 12),
+              Text('Day by day', style: GoogleFonts.poppins(color: textColor, fontSize: 11.5, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 6),
+              ...days.map((d) {
+                final r = (d['rating'] as num?)?.toInt() ?? 0;
+                final tags = ((d['tags'] ?? const []) as List).map((e) => e.toString()).where((e) => e.isNotEmpty).toList();
+                final note = (d['note'] ?? '').toString();
+                final noteExtra = note.isNotEmpty && note != tags.join(', ') ? note : '';
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: softSurface,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        width: isWeb ? 110 : 84,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text((d['date'] ?? '').toString(),
+                                style: GoogleFonts.poppins(color: textColor, fontSize: 11, fontWeight: FontWeight.w700)),
+                            Text('${d['language']} • ${_stageText((d['stage'] ?? '').toString())}',
+                                style: GoogleFonts.poppins(color: secondaryText, fontSize: 9.5)),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            r > 0
+                                ? _stars(r.toDouble())
+                                : Text('Practiced • not rated',
+                                    style: GoogleFonts.poppins(color: secondaryText, fontSize: 10.5, fontWeight: FontWeight.w600)),
+                            if (tags.isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Wrap(
+                                spacing: 4,
+                                runSpacing: 4,
+                                children: tags
+                                    .map((t) => Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                          decoration: BoxDecoration(
+                                              color: teal.withOpacity(.12), borderRadius: BorderRadius.circular(6)),
+                                          child: Text(t,
+                                              style: GoogleFonts.poppins(
+                                                  color: deepNavy, fontSize: 9.5, fontWeight: FontWeight.w600)),
+                                        ))
+                                    .toList(),
+                              ),
+                            ],
+                            if (noteExtra.isNotEmpty) ...[
+                              const SizedBox(height: 3),
+                              Text(noteExtra, style: GoogleFonts.poppins(color: textColor, fontSize: 10)),
+                            ],
+                          ],
+                        ),
+                      ),
+                      if ((d['trainerName'] ?? '').toString().isNotEmpty)
+                        Text('by ${d['trainerName']}',
+                            style: GoogleFonts.poppins(color: secondaryText, fontSize: 9.5)),
+                    ],
+                  ),
+                );
+              }),
+            ],
+    );
+  }
+
+  // =========================================================
+  // 📝 TEST RESULTS (+ when the admin published the test)
+  // =========================================================
+  Widget _testsCard({required bool isWeb}) {
+    final t = Map<String, dynamic>.from((report!['tests'] ?? const {}) as Map);
+    final list = ((t['results'] ?? const []) as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    final avg = (t['averagePercentage'] as num?)?.toInt() ?? 0;
+
+    return _sectionCard(
+      icon: Icons.assignment_turned_in_rounded,
+      color: navy,
+      title: 'Test results',
+      subtitle: 'Tests taken $_periodWord',
+      trailing: list.isEmpty
+          ? null
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text('$avg%',
+                    style: GoogleFonts.poppins(
+                        color: avg >= 50 ? presentColor : absentColor, fontSize: 18, fontWeight: FontWeight.w800)),
+                Text('average • ${list.length} test${list.length == 1 ? '' : 's'}',
+                    style: GoogleFonts.poppins(color: secondaryText, fontSize: 9.5)),
+              ],
+            ),
+      children: list.isEmpty
+          ? [_emptyLine('No tests taken $_periodWord.')]
+          : list.map((r) {
+              final pct = (r['percentage'] as num?)?.toInt() ?? 0;
+              final c = pct >= 50 ? presentColor : absentColor;
+              final published = _dateTime(r['testPublishedAt']);
+              return Container(
+                margin: const EdgeInsets.only(bottom: 6),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: softSurface, borderRadius: BorderRadius.circular(12)),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 58,
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      decoration: BoxDecoration(
+                        color: c.withOpacity(.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Column(
+                        children: [
+                          Text('${r['score']}/${r['total']}',
+                              style: GoogleFonts.poppins(color: textColor, fontSize: 12, fontWeight: FontWeight.w800)),
+                          Text('$pct%', style: GoogleFonts.poppins(color: c, fontSize: 10, fontWeight: FontWeight.w800)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('${r['language']} • ${_stageText((r['stage'] ?? '').toString())} test',
+                              style: GoogleFonts.poppins(color: textColor, fontSize: 11.5, fontWeight: FontWeight.w700)),
+                          Text('Taken: ${_dateTime(r['completedAt'])}',
+                              style: GoogleFonts.poppins(color: secondaryText, fontSize: 10)),
+                          Text(published.isEmpty ? 'Uploaded by admin: (older test, date not saved)' : 'Uploaded by admin: $published',
+                              style: GoogleFonts.poppins(color: secondaryText, fontSize: 10)),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(color: c.withOpacity(.12), borderRadius: BorderRadius.circular(8)),
+                      child: Text(pct >= 50 ? 'Passed' : 'Below 50%',
+                          style: GoogleFonts.poppins(color: c, fontSize: 9.5, fontWeight: FontWeight.w700)),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
     );
   }
 

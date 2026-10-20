@@ -51,6 +51,7 @@ class _AdminFeeVerificationScreenState
   List<dynamic> historyStudents = [];
 
   String selectedFilter = 'all';
+  String selectedLanguage = 'all'; // all | English | Hindi
   DateTime? selectedDateFilter;
 
   final TextEditingController searchController = TextEditingController();
@@ -229,6 +230,12 @@ class _AdminFeeVerificationScreenState
     }
   }
 
+  /// Course the fee is for (student picks it when uploading; old uploads are guessed by the server)
+  String _language(dynamic student) {
+    final v = (student['feeLanguage'] ?? '').toString().toLowerCase();
+    return v == 'hindi' ? 'Hindi' : 'English';
+  }
+
   bool _isOnline(dynamic student) {
     return (student['mode'] ?? 'online').toString().toLowerCase() == 'online';
   }
@@ -293,6 +300,7 @@ class _AdminFeeVerificationScreenState
       final online = _isOnline(student);
       if (selectedFilter == 'online' && !online) return false;
       if (selectedFilter == 'offline' && online) return false;
+      if (selectedLanguage != 'all' && _language(student) != selectedLanguage) return false;
       if (isHistory && !_matchesDate(student)) return false;
       if (!_matchesSearch(student)) return false;
       return true;
@@ -450,6 +458,82 @@ class _AdminFeeVerificationScreenState
         tabs: [
           Tab(height: 32, text: 'Pending Review (${pendingStudents.length})'),
           Tab(height: 32, text: 'Accounting History (${historyStudents.length})'),
+        ],
+      ),
+    );
+  }
+
+  // 🇬🇧 English / 🇮🇳 Hindi split
+  Widget _buildLanguageBar(bool isMobile) {
+    final list = _tabController.index == 0 ? pendingStudents : historyStudents;
+    final en = list.where((s) => _language(s) == 'English').length;
+    final hi = list.where((s) => _language(s) == 'Hindi').length;
+
+    Widget seg(String value, String label, int count, Color color) {
+      final selected = selectedLanguage == value;
+      return Expanded(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(11),
+          onTap: () => setState(() => selectedLanguage = value),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: EdgeInsets.symmetric(vertical: isMobile ? 7 : 8),
+            decoration: BoxDecoration(
+              color: selected ? color : Colors.transparent,
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                      color: selected ? Colors.white : textSecondary,
+                      fontSize: isMobile ? 10.5 : 11.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 5),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: selected ? Colors.white.withOpacity(.22) : border,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '$count',
+                    style: GoogleFonts.poppins(
+                      color: selected ? Colors.white : textSecondary,
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: border),
+      ),
+      child: Row(
+        children: [
+          seg('all', 'All courses', list.length, const Color(0xFF0F5A87)),
+          const SizedBox(width: 3),
+          seg('English', '🇬🇧 English', en, primary),
+          const SizedBox(width: 3),
+          seg('Hindi', '🇮🇳 Hindi', hi, const Color(0xFFEA580C)),
         ],
       ),
     );
@@ -691,6 +775,11 @@ class _AdminFeeVerificationScreenState
                   spacing: 5,
                   runSpacing: 3,
                   children: [
+                    _buildBadge(
+                      _language(student) == 'Hindi' ? '🇮🇳 HINDI' : '🇬🇧 ENGLISH',
+                      _language(student) == 'Hindi' ? const Color(0xFFEA580C) : const Color(0xFF0F5A87),
+                      _language(student) == 'Hindi' ? const Color(0xFFFFF1E6) : const Color(0xFFE6F0F7),
+                    ),
                     _buildBadge(online ? 'ONLINE' : 'OFFLINE', online ? primary : warning, online ? primarySoft : warningSoft),
                     _buildBadge(_statusText(status), statusColor, statusBackground),
                   ],
@@ -797,8 +886,8 @@ class _AdminFeeVerificationScreenState
   Widget _buildStats(bool isMobile, int onlineCount, int offlineCount, int showingCount) {
     final cards = [
       _buildStatCard(title: 'Pending', value: '${pendingStudents.length}', subtitle: 'Awaiting review', icon: Icons.pending_actions_rounded, iconColor: warning, iconBackground: warningSoft, isMobile: isMobile),
-      _buildStatCard(title: 'Online', value: '$onlineCount', subtitle: 'Online students', icon: Icons.wifi_rounded, iconColor: primary, iconBackground: primarySoft, isMobile: isMobile),
-      _buildStatCard(title: 'Offline', value: '$offlineCount', subtitle: 'Offline students', icon: Icons.person_outline_rounded, iconColor: warning, iconBackground: warningSoft, isMobile: isMobile),
+      _buildStatCard(title: 'Pending English', value: '${pendingStudents.where((s) => _language(s) == 'English').length}', subtitle: 'English course', icon: Icons.translate_rounded, iconColor: const Color(0xFF0F5A87), iconBackground: const Color(0xFFE6F0F7), isMobile: isMobile),
+      _buildStatCard(title: 'Pending Hindi', value: '${pendingStudents.where((s) => _language(s) == 'Hindi').length}', subtitle: 'Hindi course', icon: Icons.language_rounded, iconColor: const Color(0xFFEA580C), iconBackground: const Color(0xFFFFF1E6), isMobile: isMobile),
       _buildStatCard(title: 'Showing', value: '$showingCount', subtitle: 'Filtered list', icon: Icons.filter_alt_outlined, iconColor: success, iconBackground: successSoft, isMobile: isMobile),
     ];
 
@@ -857,6 +946,11 @@ class _AdminFeeVerificationScreenState
                             SizedBox(height: isMobile ? 8 : 10),
                             _buildTabs(isMobile),
                             SizedBox(height: isMobile ? 7 : 9),
+                            AnimatedBuilder(
+                              animation: _tabController,
+                              builder: (context, child) => _buildLanguageBar(isMobile),
+                            ),
+                            SizedBox(height: isMobile ? 6 : 8),
                             AnimatedBuilder(
                               animation: _tabController,
                               builder: (context, child) => _buildFilterSection(context, isMobile),

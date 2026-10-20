@@ -5,13 +5,17 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:lets_speake_manager/Api/ApiendPoints.dart';
 import 'package:lets_speake_manager/Api/api_headers.dart';
+import 'package:lets_speake_manager/Navigation/AdminShellNavigation.dart';
 import 'package:lets_speake_manager/screens/AttendanceReportScreen.dart';
+import 'package:lets_speake_manager/screens/best_students_view.dart';
 
-/// Best trainer / best student of the month or year.
-///   Get.to(() => const LeaderboardScreen(role: 'teacher'));
+/// Best trainer / best student / top-rated student of the month or year.
+///   Get.to(() => const LeaderboardScreen(role: 'teacher'));   // or 'student' / 'rating'
 class LeaderboardScreen extends StatefulWidget {
-  final String role; // 'teacher' | 'student'
-  const LeaderboardScreen({super.key, this.role = 'teacher'});
+  /// true = opened from the admin sidebar (menu button instead of back)
+  final bool embedded;
+  final String role; // 'teacher' | 'student' | 'rating'
+  const LeaderboardScreen({super.key, this.embedded = false, this.role = 'teacher'});
 
   @override
   State<LeaderboardScreen> createState() => _LeaderboardScreenState();
@@ -51,12 +55,17 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
   String? errorText;
   Map<String, dynamic>? data;
 
+  // ⭐ Top rated filters
+  String rLanguage = 'English';
+  String rStage = 'all';
+
   bool get isTrainer => role == 'teacher';
+  bool get isRating => role == 'rating';
 
   @override
   void initState() {
     super.initState();
-    role = widget.role == 'student' ? 'student' : 'teacher';
+    role = ['student', 'rating'].contains(widget.role) ? widget.role : 'teacher';
     final now = DateTime.now();
     year = now.year;
     month = now.month;
@@ -69,10 +78,12 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
       errorText = null;
     });
     try {
+      final period = yearly ? 'year' : 'month';
+      final url = isRating
+          ? "${ApiEndpoints.baseUrl}/leaderboard/ratings?period=$period&year=$year&month=$month&language=$rLanguage&stage=$rStage&limit=50"
+          : "${ApiEndpoints.baseUrl}/leaderboard?role=$role&period=$period&year=$year&month=$month&limit=50";
       final res = await http.get(
-        Uri.parse(
-          "${ApiEndpoints.baseUrl}/leaderboard?role=$role&period=${yearly ? 'year' : 'month'}&year=$year&month=$month&limit=50",
-        ),
+        Uri.parse(url),
         headers: ApiHeaders.auth(),
       );
       if (!mounted) return;
@@ -134,11 +145,17 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         backgroundColor: cardColor,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(
-          onPressed: () => Get.back(),
-          icon: const Icon(Icons.arrow_back_rounded, color: textColor),
-        ),
-        titleSpacing: 0,
+        leading: widget.embedded
+            ? (AdminShellNavigation.shouldShowMenuButton(context)
+                ? IconButton(
+                    tooltip: 'Menu',
+                    onPressed: AdminShellNavigation.openDrawer,
+                    icon: const Icon(Icons.menu_rounded, color: textColor),
+                  )
+                : null)
+            : IconButton(onPressed: () => Get.back(), icon: const Icon(Icons.arrow_back_rounded, color: textColor)),
+        automaticallyImplyLeading: false,
+        titleSpacing: widget.embedded && !AdminShellNavigation.shouldShowMenuButton(context) ? 20 : 0,
         title: Row(
           children: [
             Container(
@@ -160,7 +177,11 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                   style: GoogleFonts.poppins(color: textColor, fontSize: 16, fontWeight: FontWeight.w700),
                 ),
                 Text(
-                  'Best ${isTrainer ? 'trainers' : 'students'} by attendance',
+                  isRating
+                      ? 'Top rated students by trainer stars'
+                      : isTrainer
+                          ? 'Best trainers by attendance'
+                          : 'Best students: attendance + practice + tests',
                   style: GoogleFonts.poppins(color: secondaryText, fontSize: 10),
                 ),
               ],
@@ -175,7 +196,29 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
           const SizedBox(width: 6),
         ],
       ),
-      body: SafeArea(
+      body: role == 'student'
+          ? SafeArea(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 900),
+                  child: Column(
+                    children: [
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(isWeb ? 24 : 14, 14, isWeb ? 24 : 14, 0),
+                        child: _toggles(),
+                      ),
+                      Expanded(
+                        child: BestStudentsView(
+                          audience: 'admin',
+                          padding: EdgeInsets.fromLTRB(isWeb ? 24 : 14, 10, isWeb ? 24 : 14, 28),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            )
+          : SafeArea(
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 900),
@@ -189,8 +232,14 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                   _toggles(),
                   const SizedBox(height: 10),
                   _periodNav(),
+                  if (isRating) ...[
+                    const SizedBox(height: 10),
+                    _ratingFilters(),
+                  ],
                   const SizedBox(height: 14),
-                  if (isLoading)
+                  if (isRating && !isLoading && errorText == null)
+                    ..._ratingBody(ranking)
+                  else if (isLoading)
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 80),
                       child: Center(child: CircularProgressIndicator(color: navy, strokeWidth: 2.4)),
@@ -216,8 +265,11 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                     ...ranking.map(_rankRow),
                     const SizedBox(height: 10),
                     Text(
-                      'Ranked by attendance %, then on-time (Present) days, then minutes in class. '
-                      'Sundays are off days. Today counts after 8:15 PM.',
+                      isTrainer
+                          ? 'Ranked by attendance %, then on-time (Present) days, then minutes in class. '
+                              'Sundays are off days. Today counts after 8:15 PM.'
+                          : 'Score = attendance 50% + speaking-practice rating 30% (trainer stars ÷ 5) + test average 20%. '
+                              'No rating / no test yet counts as 0. Sundays are off days. Today counts after 8:15 PM.',
                       style: GoogleFonts.poppins(color: secondaryText, fontSize: 9.5, height: 1.4),
                     ),
                   ],
@@ -281,29 +333,29 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         box([
           seg('Trainers', isTrainer, () {
             if (isTrainer) return;
-            setState(() => role = 'teacher');
+            setState(() {
+              role = 'teacher';
+              data = null;
+            });
             _load();
           }, icon: Icons.school_rounded),
           const SizedBox(width: 4),
-          seg('Students', !isTrainer, () {
-            if (!isTrainer) return;
-            setState(() => role = 'student');
-            _load();
+          seg('Best students', role == 'student', () {
+            if (role == 'student') return;
+            setState(() {
+              role = 'student';
+              data = null;
+            });
           }, icon: Icons.groups_rounded),
-        ]),
-        const SizedBox(height: 8),
-        box([
-          seg('This month', !yearly, () {
-            if (!yearly) return;
-            setState(() => yearly = false);
-            _load();
-          }, icon: Icons.calendar_month_rounded),
           const SizedBox(width: 4),
-          seg('This year', yearly, () {
-            if (yearly) return;
-            setState(() => yearly = true);
+          seg('Top rated', isRating, () {
+            if (isRating) return;
+            setState(() {
+              role = 'rating';
+              data = null;
+            });
             _load();
-          }, icon: Icons.calendar_today_rounded),
+          }, icon: Icons.star_rounded),
         ]),
       ],
     );
@@ -360,7 +412,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     Get.to(() => AttendanceReportScreen(
           userId: (p['userId'] ?? '').toString(),
           name: (p['name'] ?? '').toString(),
-          role: role,
+          role: isTrainer ? 'teacher' : 'student',
           startWithYear: yearly,
         ));
   }
@@ -434,7 +486,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${p['percentage']}% attendance • ${p['attended']}/${p['workingDays']} days • ${p['hours']}h',
+                    _hasScore(p)
+                        ? 'Score ${p['score']} • ${p['percentage']}% attendance • ${_stars(p)} practice • ${_tests(p)} tests'
+                        : '${p['percentage']}% attendance • ${p['attended']}/${p['workingDays']} days • ${p['hours']}h',
                     style: GoogleFonts.poppins(color: Colors.white.withOpacity(.8), fontSize: 11),
                   ),
                 ],
@@ -474,7 +528,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                 style: GoogleFonts.poppins(color: textColor, fontSize: 11, fontWeight: FontWeight.w700),
               ),
               Text(
-                '${p['percentage']}%',
+                _hasScore(p) ? 'Score ${p['score']}' : '${p['percentage']}%',
                 style: GoogleFonts.poppins(color: secondaryText, fontSize: 10, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 5),
@@ -524,7 +578,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
 
   Widget _rankRow(Map<String, dynamic> p) {
     final int rank = (p['rank'] as num?)?.toInt() ?? 0;
-    final int pct = (p['percentage'] as num?)?.toInt() ?? 0;
+    // Students: overall score (attendance + practice + tests). Trainers: attendance %.
+    final int pct = _hasScore(p)
+        ? (p['score'] as num?)?.toInt() ?? 0
+        : (p['percentage'] as num?)?.toInt() ?? 0;
     final medal = rank == 1 ? gold : rank == 2 ? silver : rank == 3 ? bronze : null;
     final name = (p['name'] ?? '').toString();
     final barColor = pct >= 75 ? success : (pct >= 50 ? late : error);
@@ -579,8 +636,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${p['present']} present • ${p['late']} late • ${p['absent']} absent • ${p['hours']}h'
-                      '${(p['phone'] ?? '').toString().isNotEmpty ? ' • ${p['phone']}' : ''}',
+                      (_hasScore(p)
+                              ? '${p['percentage']}% attendance • ${_stars(p)} practice (${p['practiceCount'] ?? 0}) • ${_tests(p)} tests (${p['testCount'] ?? 0})'
+                              : '${p['present']} present • ${p['late']} late • ${p['absent']} absent • ${p['hours']}h') +
+                          '${(p['phone'] ?? '').toString().isNotEmpty ? ' • ${p['phone']}' : ''}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.poppins(color: secondaryText, fontSize: 9.5),
@@ -590,7 +649,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
               ),
               const SizedBox(width: 10),
               Text(
-                '$pct%',
+                _hasScore(p) ? '$pct' : '$pct%',
                 style: GoogleFonts.poppins(color: barColor, fontSize: 15, fontWeight: FontWeight.w800),
               ),
             ],
@@ -598,5 +657,481 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         ),
       ),
     );
+  }
+
+  // =========================================================
+  // ⭐ TOP RATED
+  // =========================================================
+  Widget _ratingFilters() {
+    Widget chip(String label, bool selected, VoidCallback onTap) => Padding(
+          padding: const EdgeInsets.only(right: 6),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(20),
+            onTap: onTap,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                color: selected ? navy : cardColor,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: selected ? navy : borderColor),
+              ),
+              child: Text(
+                label,
+                style: GoogleFonts.poppins(
+                  color: selected ? Colors.white : textColor,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        );
+
+    void pickStage(String s) {
+      if (rStage == s) return;
+      setState(() => rStage = s);
+      _load();
+    }
+
+    return SizedBox(
+      height: 36,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        children: [
+          chip(rLanguage == 'English' ? '🇬🇧 English' : '🇮🇳 Hindi', false, () {
+            setState(() => rLanguage = rLanguage == 'English' ? 'Hindi' : 'English');
+            _load();
+          }),
+          Container(width: 1, margin: const EdgeInsets.fromLTRB(2, 6, 8, 6), color: borderColor),
+          chip('All stages', rStage == 'all', () => pickStage('all')),
+          for (int i = 1; i <= 7; i++) chip('Stage $i', rStage == 'stage$i', () => pickStage('stage$i')),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _ratingBody(List<Map<String, dynamic>> ranking) {
+    final winner = data?['winner'] is Map ? Map<String, dynamic>.from(data!['winner']) : null;
+    final best = List<Map<String, dynamic>>.from(
+      ((data?['bestByStage'] as List?) ?? []).map((e) => Map<String, dynamic>.from(e)),
+    );
+    final minRatings = (data?['minRatings'] as num?)?.toInt() ?? 3;
+    final stageText = rStage == 'all' ? 'all stages' : 'Stage ${rStage.replaceAll('stage', '')}';
+
+    if (ranking.isEmpty) {
+      return [
+        _message(
+          Icons.star_border_rounded,
+          'No ratings yet for $rLanguage • $stageText in ${data?['periodLabel'] ?? 'this period'}.\n'
+          'Trainers rate a student right after "Mark practiced".',
+          secondaryText,
+        ),
+      ];
+    }
+
+    return [
+      if (winner != null)
+        _ratingWinner(winner)
+      else
+        _message(
+          Icons.hourglass_top_rounded,
+          'No winner yet — a student needs at least $minRatings ratings in ${data?['periodLabel'] ?? 'this period'}.',
+          late,
+        ),
+      if (rStage == 'all' && best.isNotEmpty) ...[
+        const SizedBox(height: 14),
+        Text(
+          'Best in each stage',
+          style: GoogleFonts.poppins(color: textColor, fontSize: 13, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 104,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            itemCount: best.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (_, i) => _stageBestCard(best[i]),
+          ),
+        ),
+      ],
+      const SizedBox(height: 14),
+      Text(
+        '${data?['totalRated'] ?? ranking.length} students rated • ${data?['totalRatings'] ?? 0} ratings',
+        style: GoogleFonts.poppins(color: textColor, fontSize: 13, fontWeight: FontWeight.w700),
+      ),
+      const SizedBox(height: 8),
+      ...ranking.map((p) => _ratingRow(p, minRatings)),
+      const SizedBox(height: 10),
+      Text(
+        'Ranked by average trainer rating (1–5★), then number of ratings, then 5★ count. '
+        'To be named best, a student needs at least $minRatings ratings in the ${yearly ? 'year' : 'month'}.',
+        style: GoogleFonts.poppins(color: secondaryText, fontSize: 9.5, height: 1.4),
+      ),
+    ];
+  }
+
+  Widget _starRow(double avg, {double size = 13, Color color = gold}) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(5, (i) {
+        final v = avg - i;
+        final icon = v >= .75 ? Icons.star_rounded : (v >= .25 ? Icons.star_half_rounded : Icons.star_outline_rounded);
+        return Icon(icon, size: size, color: color);
+      }),
+    );
+  }
+
+  Widget _ratingWinner(Map<String, dynamic> p) {
+    final name = (p['name'] ?? '').toString();
+    final avg = (p['avg'] as num?)?.toDouble() ?? 0;
+    final tags = List<String>.from((p['topTags'] as List?) ?? []);
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: () => _openReport(p),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [deepNavy, navy, blue],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [BoxShadow(color: navy.withOpacity(.25), blurRadius: 18, offset: const Offset(0, 8))],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 66,
+              height: 66,
+              padding: const EdgeInsets.all(3),
+              decoration: const BoxDecoration(shape: BoxShape.circle, gradient: LinearGradient(colors: [gold, yellow])),
+              child: CircleAvatar(
+                backgroundColor: deepNavy,
+                child: Text(
+                  name.isNotEmpty ? name[0].toUpperCase() : '?',
+                  style: GoogleFonts.poppins(color: yellow, fontSize: 24, fontWeight: FontWeight.w800),
+                ),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'TOP RATED • ${(data?['periodLabel'] ?? '').toString().toUpperCase()}',
+                    style: GoogleFonts.poppins(color: yellow, fontSize: 9.5, fontWeight: FontWeight.w800, letterSpacing: .8),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 3),
+                  Row(
+                    children: [
+                      _starRow(avg, size: 15, color: yellow),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          '${avg.toStringAsFixed(1)} • ${p['rated']} ratings • ${p['fiveStar']}× 5★',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.poppins(color: Colors.white.withOpacity(.85), fontSize: 11),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (tags.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'Strong in: ${tags.join(', ')}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(color: Colors.white.withOpacity(.7), fontSize: 10),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, color: Colors.white.withOpacity(.7)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _stageBestCard(Map<String, dynamic> b) {
+    final stage = (b['stage'] ?? '').toString();
+    final w = b['winner'] is Map ? Map<String, dynamic>.from(b['winner']) : null;
+    final avg = (w?['avg'] as num?)?.toDouble() ?? 0;
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: () {
+        setState(() => rStage = stage);
+        _load();
+      },
+      child: Container(
+        width: 150,
+        padding: const EdgeInsets.all(11),
+        decoration: BoxDecoration(
+          color: cardColor,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: w == null ? borderColor : gold.withOpacity(.45)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  'Stage ${stage.replaceAll('stage', '')}',
+                  style: GoogleFonts.poppins(color: secondaryText, fontSize: 10, fontWeight: FontWeight.w700),
+                ),
+                const Spacer(),
+                if (w != null) const Text('🏅', style: TextStyle(fontSize: 13)),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              w == null ? 'No ratings yet' : (w['name'] ?? '').toString(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.poppins(
+                color: w == null ? secondaryText : textColor,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const Spacer(),
+            if (w != null) ...[
+              _starRow(avg, size: 12),
+              const SizedBox(height: 2),
+              Text(
+                '${avg.toStringAsFixed(1)} • ${w['rated']} ratings • ${b['students']} rated',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.poppins(color: secondaryText, fontSize: 9),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _ratingRow(Map<String, dynamic> p, int minRatings) {
+    final rank = (p['rank'] as num?)?.toInt() ?? 0;
+    final avg = (p['avg'] as num?)?.toDouble() ?? 0;
+    final qualified = p['qualified'] == true;
+    final medal = !qualified ? null : (rank == 1 ? gold : rank == 2 ? silver : rank == 3 ? bronze : null);
+    final name = (p['name'] ?? '').toString();
+    final tags = List<String>.from((p['topTags'] as List?) ?? []);
+    final stages = List<String>.from((p['stages'] as List?) ?? []).map((s) => 'S${s.replaceAll('stage', '')}').join(', ');
+    final section = (p['section'] ?? '').toString();
+    final color = avg >= 4 ? success : (avg >= 3 ? late : error);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 7),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => _showRatingDetails(p),
+        child: Opacity(
+          opacity: qualified ? 1 : .72,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: cardColor,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: medal?.withOpacity(.5) ?? borderColor),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 30,
+                  height: 30,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(color: (medal ?? navy).withOpacity(.13), shape: BoxShape.circle),
+                  child: Text(
+                    '$rank',
+                    style: GoogleFonts.poppins(color: medal ?? navy, fontSize: 12, fontWeight: FontWeight.w800),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(color: textColor, fontSize: 12.5, fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          _starRow(avg, size: 12),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              '${p['rated']} ratings • ${p['fiveStar']}× 5★',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.poppins(color: secondaryText, fontSize: 9.5),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        [
+                          if (stages.isNotEmpty) stages,
+                          if (section.isNotEmpty && section != 'None') 'Sec $section',
+                          if (tags.isNotEmpty) tags.join(' · '),
+                          if (!qualified) 'needs $minRatings+ ratings',
+                        ].join('  •  '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(color: secondaryText, fontSize: 9),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  avg.toStringAsFixed(1),
+                  style: GoogleFonts.poppins(color: color, fontSize: 16, fontWeight: FontWeight.w800),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showRatingDetails(Map<String, dynamic> p) {
+    final avg = (p['avg'] as num?)?.toDouble() ?? 0;
+    final tags = List<String>.from((p['topTags'] as List?) ?? []);
+    final note = (p['lastNote'] ?? '').toString();
+    final trainer = (p['lastTrainer'] ?? '').toString();
+    final phone = (p['phone'] ?? '').toString();
+    Get.bottomSheet(
+      Container(
+        padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+        decoration: const BoxDecoration(
+          color: cardColor,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 38,
+                  height: 4,
+                  decoration: BoxDecoration(color: borderColor, borderRadius: BorderRadius.circular(4)),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                (p['name'] ?? '').toString(),
+                style: GoogleFonts.poppins(color: textColor, fontSize: 17, fontWeight: FontWeight.w800),
+              ),
+              if (phone.isNotEmpty)
+                Text(phone, style: GoogleFonts.poppins(color: secondaryText, fontSize: 11)),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  _starRow(avg, size: 22),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${avg.toStringAsFixed(1)} / 5',
+                    style: GoogleFonts.poppins(color: textColor, fontSize: 15, fontWeight: FontWeight.w800),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${p['rated']} ratings • ${p['fiveStar']}× 5★ • ${data?['periodLabel'] ?? ''}',
+                style: GoogleFonts.poppins(color: secondaryText, fontSize: 11),
+              ),
+              if (tags.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: tags
+                      .map((t) => Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: teal.withOpacity(.12),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(t,
+                                style: GoogleFonts.poppins(color: navy, fontSize: 10.5, fontWeight: FontWeight.w700)),
+                          ))
+                      .toList(),
+                ),
+              ],
+              if (note.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: softSurface, borderRadius: BorderRadius.circular(12)),
+                  child: Text(
+                    '“$note”${trainer.isNotEmpty ? '\n— $trainer' : ''}',
+                    style: GoogleFonts.poppins(color: textColor, fontSize: 11.5, height: 1.45),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Get.back();
+                    _openReport(p);
+                  },
+                  icon: const Icon(Icons.insights_rounded, size: 16),
+                  label: Text('Open attendance report',
+                      style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: navy,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      isScrollControlled: true,
+    );
+  }
+
+  // ⭐ helpers for the student score
+  bool _hasScore(Map<String, dynamic> p) => p['score'] != null;
+  String _stars(Map<String, dynamic> p) {
+    final v = (p['practiceAvg'] as num?)?.toDouble() ?? 0;
+    return v > 0 ? '★${v.toStringAsFixed(1)}' : '★ –';
+  }
+
+  String _tests(Map<String, dynamic> p) {
+    final c = (p['testCount'] as num?)?.toInt() ?? 0;
+    return c > 0 ? '${p['testAvg']}%' : '–';
   }
 }

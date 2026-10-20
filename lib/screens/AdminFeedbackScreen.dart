@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:lets_speake_manager/Api/ApiendPoints.dart';
 import 'package:lets_speake_manager/Navigation/AdminShellNavigation.dart';
+import 'package:socket_io_client/socket_io_client.dart' as IO;
 
 class AdminFeedbackScreen extends StatefulWidget {
   const AdminFeedbackScreen({super.key});
@@ -48,7 +49,9 @@ class _AdminFeedbackScreenState extends State<AdminFeedbackScreen>
   final box = GetStorage();
   bool isLoading = true;
   List<dynamic> feedbackList = [];
-  Timer? _autoRefreshTimer; // 🚀 Background auto-refresh timer
+  Timer? _autoRefreshTimer; // safety net if a live message is missed
+  IO.Socket? _socket; // ⚡ live: new feedback appears the moment a student sends it
+  final Set<String> _freshIds = <String>{}; // just arrived → highlighted for a few seconds
 
   String filterMode = "all"; // 'all', 'online', 'offline'
   DateTime? selectedDate; // null means 'All Dates'
@@ -58,16 +61,97 @@ class _AdminFeedbackScreenState extends State<AdminFeedbackScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     fetchFeedbacks();
+    _connectSocket();
 
-    // 🚀 Automatically check for new student feedback every 10 seconds in the background
-    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+    // Safety net: check every 20 s in case a live message was missed
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 20), (_) {
       fetchFeedbacks(silent: true);
     });
+  }
+
+  // ---------------------------------------------------------------
+  // ⚡ LIVE UPDATES
+  // ---------------------------------------------------------------
+  void _connectSocket() {
+    try {
+      // Socket.IO connects to the server root, not ".../api"
+      final uri = Uri.parse(ApiEndpoints.baseUrl);
+      final host = "${uri.scheme}://${uri.host}${uri.hasPort ? ':${uri.port}' : ''}";
+      final s = IO.io(
+        host,
+        IO.OptionBuilder()
+            .setTransports(['websocket'])
+            .setAuth({'token': (box.read('token') ?? '').toString()})
+            .enableForceNew()
+            .enableAutoConnect()
+            .build(),
+      );
+      s.onConnect((_) => s.emit('join_admin_room'));
+      s.onReconnect((_) {
+        s.emit('join_admin_room');
+        fetchFeedbacks(silent: true); // catch anything sent while offline
+      });
+      s.on('feedback_new', _onFeedbackNew);
+      s.on('feedback_deleted', (data) {
+        if (!mounted || data is! Map) return;
+        final id = (data['id'] ?? '').toString();
+        setState(() => feedbackList.removeWhere((f) => f['_id']?.toString() == id));
+      });
+      _socket = s;
+    } catch (e) {
+      debugPrint('Feedback socket error: $e');
+    }
+  }
+
+  void _onFeedbackNew(dynamic data) {
+    if (!mounted) return;
+    final fb = data is Map && data['feedback'] is Map ? Map<String, dynamic>.from(data['feedback']) : null;
+    if (fb == null) {
+      fetchFeedbacks(silent: true);
+      return;
+    }
+    final id = (fb['_id'] ?? '').toString();
+    if (feedbackList.any((f) => f['_id']?.toString() == id)) return;
+
+    // Respect the filters on screen
+    final mode = (fb['mode'] ?? '').toString().toLowerCase();
+    final modeOk = filterMode == 'all' || mode == filterMode;
+    final created = DateTime.tryParse((fb['createdAt'] ?? '').toString())?.toLocal();
+    final dateOk = selectedDate == null ||
+        (created != null &&
+            created.year == selectedDate!.year &&
+            created.month == selectedDate!.month &&
+            created.day == selectedDate!.day);
+
+    HapticFeedback.lightImpact();
+    if (modeOk && dateOk) {
+      setState(() {
+        feedbackList.insert(0, fb);
+        _freshIds.add(id);
+      });
+      Future.delayed(const Duration(seconds: 6), () {
+        if (mounted) setState(() => _freshIds.remove(id));
+      });
+    }
+    final rating = (fb['rating'] as num?)?.toInt() ?? 0;
+    Get.snackbar(
+      'New feedback ${'⭐' * rating.clamp(0, 5)}',
+      '${fb['name'] ?? 'A student'}: ${(fb['comment'] ?? '').toString()}',
+      backgroundColor: navy,
+      colorText: Colors.white,
+      snackPosition: SnackPosition.TOP,
+      margin: const EdgeInsets.all(16),
+      borderRadius: 12,
+      maxWidth: 520,
+      duration: const Duration(seconds: 4),
+    );
   }
 
   @override
   void dispose() {
     _autoRefreshTimer?.cancel();
+    _socket?.clearListeners();
+    _socket?.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -83,7 +167,8 @@ class _AdminFeedbackScreenState extends State<AdminFeedbackScreen>
     if (!silent && mounted) setState(() => isLoading = true);
     String? token = box.read('token');
 
-    String queryParams = "?mode=$filterMode";
+    // _t = cache-buster: the browser must always fetch the newest list
+    String queryParams = "?mode=$filterMode&_t=${DateTime.now().millisecondsSinceEpoch}";
     if (selectedDate != null) {
       final String formattedDate = DateFormat(
         'yyyy-MM-dd',
@@ -776,13 +861,15 @@ class _AdminFeedbackScreenState extends State<AdminFeedbackScreen>
     }
 
     final modeColor = isOnline ? blue : const Color(0xFF9A7500);
+    final isFresh = _freshIds.contains(item['_id']?.toString());
 
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 500),
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
-        color: cardColor,
+        color: isFresh ? const Color(0xFFEFFBF6) : cardColor,
         borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: borderColor),
+        border: Border.all(color: isFresh ? successGreen : borderColor, width: isFresh ? 1.5 : 1),
         boxShadow: const [
           BoxShadow(
             color: Color(0x08155A88),
@@ -842,6 +929,10 @@ class _AdminFeedbackScreenState extends State<AdminFeedbackScreen>
                   ],
                 ),
               ),
+              if (isFresh) ...[
+                _modeBadge('NEW', successGreen),
+                const SizedBox(width: 4),
+              ],
               _modeBadge(mode, modeColor),
               const SizedBox(width: 3),
               IconButton(

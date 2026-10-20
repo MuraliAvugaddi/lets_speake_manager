@@ -8,6 +8,8 @@ import 'package:http/http.dart' as http;
 import 'package:lets_speake_manager/Api/ApiendPoints.dart';
 import 'package:lets_speake_manager/Controllers/adminController.dart';
 import 'package:lets_speake_manager/Navigation/AdminShellNavigation.dart';
+import 'package:lets_speake_manager/screens/AdminPromoScreen.dart';
+import 'package:lets_speake_manager/screens/AdminSpecialClassScreen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -410,6 +412,66 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                       ),
                   ],
                 ),
+              ),
+              // 🌧 Rain day online / 🎙 Principal class
+              Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: isWide
+                    ? TextButton.icon(
+                        onPressed: () => Get.to(() => const AdminSpecialClassScreen()),
+                        icon: const Icon(Icons.campaign_rounded, size: 18, color: Color(0xFF7B2FF7)),
+                        label: Text(
+                          'Special classes',
+                          style: GoogleFonts.poppins(
+                            color: const Color(0xFF7B2FF7),
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        style: TextButton.styleFrom(
+                          backgroundColor: const Color(0xFF7B2FF7).withOpacity(.08),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11)),
+                        ),
+                      )
+                    : IconButton(
+                        tooltip: 'Special classes (rain day / principal)',
+                        onPressed: () => Get.to(() => const AdminSpecialClassScreen()),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 42, minHeight: 42),
+                        splashRadius: 20,
+                        icon: const Icon(Icons.campaign_rounded, color: Color(0xFF7B2FF7), size: 22),
+                      ),
+              ),
+              // 🎬 Posters & Reels → popup on the student home screen
+              Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: isWide
+                    ? TextButton.icon(
+                        onPressed: () => Get.to(() => const AdminPromoScreen()),
+                        icon: const Icon(Icons.perm_media_rounded, size: 18, color: Color(0xFFD6336C)),
+                        label: Text(
+                          'Posters & Reels',
+                          style: GoogleFonts.poppins(
+                            color: const Color(0xFFD6336C),
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        style: TextButton.styleFrom(
+                          backgroundColor: const Color(0xFFD6336C).withOpacity(.08),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11)),
+                        ),
+                      )
+                    : IconButton(
+                        tooltip: 'Posters & Reels',
+                        onPressed: () => Get.to(() => const AdminPromoScreen()),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 42, minHeight: 42),
+                        splashRadius: 20,
+                        icon: const Icon(Icons.perm_media_rounded, color: Color(0xFFD6336C), size: 22),
+                      ),
               ),
               IconButton(
                 tooltip: 'Refresh',

@@ -10,6 +10,7 @@ import 'package:lets_speake_manager/Api/ApiendPoints.dart';
 import 'package:lets_speake_manager/Api/api_headers.dart';
 import 'package:lets_speake_manager/Navigation/AdminShellNavigation.dart';
 import 'package:lets_speake_manager/screens/AttendanceReportScreen.dart';
+import 'package:lets_speake_manager/screens/AdminHolidayScreen.dart';
 import 'package:lets_speake_manager/screens/LeaderboardScreen.dart';
 import 'package:lets_speake_manager/screens/register_account_screen.dart';
 
@@ -59,6 +60,8 @@ class _AdminTeacherAttendanceScreenState
 
   List<Map<String, dynamic>> teacherList = [];
   bool isLoading = false;
+  Map<String, dynamic>? _holiday; // 🏖 selected date is a holiday
+  List<dynamic> _shiftRules = []; // [{label, start, window}]
 
   final List<String> allModes = ["All", "Online", "Offline"];
   final List<String> allLanguages = ["All", "English", "Hindi"];
@@ -114,73 +117,43 @@ class _AdminTeacherAttendanceScreenState
     String queryLang = selectedLanguage == "All" ? "all" : selectedLanguage;
 
     try {
+      // One call: every trainer with BOTH attendances (morning + afternoon) + holiday
       final response = await http.get(
         Uri.parse(
-          "${ApiEndpoints.baseUrl}/admin/teachers?mode=$queryMode&language=$queryLang&stage=$queryStage",
+          "${ApiEndpoints.baseUrl}/admin/trainer-attendance?date=$dateStr&stage=$queryStage&language=$queryLang&mode=$queryMode&_t=${DateTime.now().millisecondsSinceEpoch}",
         ),
         headers: ApiHeaders.auth(),
       );
 
-      final attendanceResponse = await http.get(
-        Uri.parse(
-          "${ApiEndpoints.baseUrl}/admin/attendance?date=$dateStr&stage=$queryStage&language=$queryLang&mode=$queryMode&role=teacher",
-        ),
-        headers: ApiHeaders.auth(),
-      );
-
-      if (response.statusCode == 200 && attendanceResponse.statusCode == 200) {
-        final decodedData = jsonDecode(response.body);
-        List<dynamic> allTeachers = decodedData['teachers'] ?? [];
-        List<dynamic> attendanceRecords = jsonDecode(attendanceResponse.body);
-
-        List<Map<String, dynamic>> tempList = [];
-
-        for (var teacher in allTeachers) {
-          String userId = (teacher['_id'] ?? teacher['id']).toString();
-          String userMode = (teacher['mode'] ?? 'online')
-              .toString()
-              .toLowerCase();
-
-          var record = attendanceRecords.firstWhere(
-            (att) => att['userId']?.toString() == userId,
-            orElse: () => null,
-          );
-
-          String? formattedTime;
-          if (record != null &&
-              (record['markedAt'] != null || record['joinTime'] != null)) {
-            try {
-              DateTime dt = DateTime.parse(
-                record['markedAt'] ?? record['joinTime'],
-              ).toLocal();
-              formattedTime = DateFormat('hh:mm a').format(dt);
-            } catch (_) {
-              formattedTime = "Today";
-            }
-          }
-
-          tempList.add({
-            "teacherId": userId,
-            "teacherName": teacher['name'] ?? "Unknown Teacher",
-            "teacherPhone": teacher['phone'] ?? "No Phone",
-            "mode": userMode,
-            "status": record != null
-                ? (record['status'] ?? "Present")
-                : "Absent",
-            "totalMinutes": record != null
-                ? (record['totalMinutes'] ?? record['totalMinutesSpent'] ?? 0)
-                : 0,
-            "markedAtTime": formattedTime,
-          });
-        }
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final List trainers = data['trainers'] ?? [];
+        final List<Map<String, dynamic>> tempList = trainers.whereType<Map>().map((t) {
+          final m = Map<String, dynamic>.from(t);
+          return <String, dynamic>{
+            "teacherId": (m['_id'] ?? '').toString(),
+            "teacherName": m['name'] ?? "Unknown Teacher",
+            "teacherPhone": m['phone'] ?? "No Phone",
+            "mode": (m['mode'] ?? 'online').toString().toLowerCase(),
+            "status": (m['status'] ?? 'Absent').toString(),
+            "morning": m['morning'] is Map ? Map<String, dynamic>.from(m['morning']) : <String, dynamic>{},
+            "afternoon": m['afternoon'] is Map ? Map<String, dynamic>.from(m['afternoon']) : <String, dynamic>{},
+            "shiftsAttended": m['shiftsAttended'] ?? 0,
+            "stage": (m['stage'] ?? '').toString(),
+            "language": (m['language'] ?? '').toString(),
+          };
+        }).toList();
 
         if (mounted) {
           setState(() {
             teacherList = tempList;
+            _holiday = data['holiday'] is Map ? Map<String, dynamic>.from(data['holiday']) : null;
+            _shiftRules = (data['rules'] is Map ? data['rules']['trainerShifts'] : null) as List? ?? [];
             isLoading = false;
           });
         }
       } else {
+        debugPrint("Trainer attendance failed: ${response.statusCode} ${response.body}");
         if (mounted) setState(() => isLoading = false);
       }
     } catch (e) {
@@ -349,6 +322,17 @@ class _AdminTeacherAttendanceScreenState
               _buildTrainerRegistrationButton(isWeb: isWeb),
 
               IconButton(
+                tooltip: 'Holidays',
+                onPressed: () async {
+                  await Get.to(() => const AdminHolidayScreen());
+                  fetchTeacherAttendance(silent: true);
+                },
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 42, minHeight: 42),
+                splashRadius: 20,
+                icon: const Icon(Icons.beach_access_rounded, color: Color(0xFF7A5AF8), size: 22),
+              ),
+              IconButton(
                 tooltip: 'Leaderboard',
                 onPressed: () => Get.to(() => const LeaderboardScreen(role: 'teacher')),
                 padding: EdgeInsets.zero,
@@ -410,6 +394,7 @@ class _AdminTeacherAttendanceScreenState
               children: [
                 _buildTopToolbar(isWeb: isWeb),
                 _buildQuickTeacherFilters(isWeb: isWeb),
+                _buildHolidayAndRules(isWeb: isWeb),
                 _buildStatusSummary(
                   totalCount: totalCount,
                   presentCount: presentCount,
@@ -479,7 +464,7 @@ class _AdminTeacherAttendanceScreenState
                                       crossAxisCount: columns,
                                       crossAxisSpacing: 10,
                                       mainAxisSpacing: 10,
-                                      mainAxisExtent: 126,
+                                      mainAxisExtent: 156,
                                     ),
                                 itemBuilder: (context, index) =>
                                     _buildTeacherCard(
@@ -933,16 +918,7 @@ class _AdminTeacherAttendanceScreenState
     final String phone = (teacher['teacherPhone'] ?? 'No Phone').toString();
     final String mode = (teacher['mode'] ?? 'offline').toString().toLowerCase();
     final String status = (teacher['status'] ?? 'Absent').toString();
-    final String? markedTime = teacher['markedAtTime']?.toString();
-    final int totalMinutes =
-        int.tryParse((teacher['totalMinutes'] ?? 0).toString()) ?? 0;
-
-    Color statusColor = success;
-    if (status == 'Late' || status == 'Partial') {
-      statusColor = const Color(0xFFC78B00);
-    } else if (status == 'Absent') {
-      statusColor = error;
-    }
+    final statusColor = _statusColor(status);
 
     final modeColor = mode == 'online' ? blue : const Color(0xFF8B6A00);
 
@@ -1007,45 +983,18 @@ class _AdminTeacherAttendanceScreenState
                     _badge(mode.toUpperCase(), modeColor),
                   ],
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(
-                  markedTime != null
-                      ? 'Checked-in at $markedTime'
-                      : mode == 'online'
-                      ? 'Online class not started'
-                      : 'Phone: $phone • Geofence pending',
+                  '${_stageLabel(teacher)} • $phone',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.poppins(
-                    color: secondaryText,
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w500,
-                  ),
+                  style: GoogleFonts.poppins(color: secondaryText, fontSize: 9, fontWeight: FontWeight.w500),
                 ),
                 const SizedBox(height: 6),
-                Row(
-                  children: [
-                    _badge(
-                      totalMinutes > 0 ? '$totalMinutes mins' : 'No duration',
-                      totalMinutes > 0 ? success : secondaryText,
-                    ),
-                    if (mode == 'offline') ...[
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          phone,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.poppins(
-                            color: secondaryText,
-                            fontSize: 8.5,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
+                // ⏰ two attendances a day
+                _shiftLine(teacher['morning'], mode),
+                const SizedBox(height: 4),
+                _shiftLine(teacher['afternoon'], mode),
               ],
             ),
           ),
@@ -1074,6 +1023,135 @@ class _AdminTeacherAttendanceScreenState
               role: 'teacher',
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'Present':
+        return success;
+      case 'Late':
+      case 'Partial':
+        return const Color(0xFFC78B00);
+      case 'Holiday':
+        return const Color(0xFF7A5AF8);
+      case 'Upcoming':
+        return secondaryText;
+      default:
+        return error;
+    }
+  }
+
+  /// "Morning  05:26 AM ✓ On time • 72 min"  /  "Afternoon  03:04 PM • 7 min late"
+  Widget _shiftLine(dynamic raw, String mode) {
+    final s = raw is Map ? raw : const {};
+    final label = (s['label'] ?? 'Shift').toString().replaceAll(' shift', '');
+    final status = (s['status'] ?? 'Absent').toString();
+    final color = _statusColor(status);
+    final time = _fmtTime(s['joinedAt']);
+    final late = int.tryParse('${s['lateByMinutes'] ?? 0}') ?? 0;
+    final mins = int.tryParse('${s['minutes'] ?? 0}') ?? 0;
+    final live = s['inClassNow'] == true;
+
+    String detail;
+    if (status == 'Present' || status == 'Late') {
+      final parts = <String>[
+        '${s['isGps'] == true ? 'GPS' : 'Joined'} ${time ?? ''}'.trim(),
+        late > 0 ? '$late min late' : 'on time',
+        if (mode == 'online' && mins > 0) '$mins min',
+        if (live) '🔴 live',
+        if (!live && s['leftAt'] != null && s['isGps'] != true) 'left ${_fmtTime(s['leftAt'])}',
+      ];
+      detail = parts.join(' • ');
+    } else if (status == 'Holiday') {
+      detail = _holiday?['title']?.toString() ?? 'Holiday';
+    } else if (status == 'Upcoming') {
+      detail = 'starts ${s['start'] ?? ''}';
+    } else {
+      detail = 'not marked';
+    }
+
+    return Row(
+      children: [
+        Container(
+          width: 64,
+          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+          decoration: BoxDecoration(color: color.withOpacity(.10), borderRadius: BorderRadius.circular(5)),
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.poppins(color: color, fontSize: 8, fontWeight: FontWeight.w700),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            '${status == 'Present' || status == 'Late' ? '' : '$status • '}$detail',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.poppins(
+              color: status == 'Absent' ? error : textColor,
+              fontSize: 9,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 🏖 holiday banner + the on-time windows
+  Widget _buildHolidayAndRules({required bool isWeb}) {
+    final h = _holiday;
+    final windows = _shiftRules
+        .whereType<Map>()
+        .map((r) => '${(r['label'] ?? '').toString().replaceAll(' shift', '')} ${r['window'] ?? ''}')
+        .join('  •  ');
+    return Padding(
+      padding: EdgeInsets.fromLTRB(isWeb ? 24 : 14, 2, isWeb ? 24 : 14, 6),
+      child: Column(
+        children: [
+          if (h != null)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1EDFF),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF7A5AF8).withOpacity(.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.beach_access_rounded, color: Color(0xFF7A5AF8), size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${h['title'] ?? 'Holiday'} — holiday. Trainers are not marked absent and this day is not counted for salary.',
+                      style: GoogleFonts.poppins(color: const Color(0xFF4A3AA8), fontSize: 10.5, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          if (windows.isNotEmpty)
+            Row(
+              children: [
+                const Icon(Icons.schedule_rounded, size: 13, color: secondaryText),
+                const SizedBox(width: 5),
+                Expanded(
+                  child: Text(
+                    'On time: $windows  (after that = Late)',
+                    maxLines: 2,
+                    style: GoogleFonts.poppins(color: secondaryText, fontSize: 9, fontWeight: FontWeight.w500),
+                  ),
+                ),
+              ],
+            ),
         ],
       ),
     );
@@ -1125,6 +1203,22 @@ class _AdminTeacherAttendanceScreenState
         ),
       ],
     );
+  }
+
+  String? _fmtTime(dynamic iso) {
+    if (iso == null) return null;
+    try {
+      return DateFormat('hh:mm a').format(DateTime.parse(iso.toString()).toLocal());
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _stageLabel(Map<String, dynamic> t) {
+    final m = RegExp(r'(\d)').firstMatch((t['stage'] ?? '').toString());
+    final stage = m != null ? 'Stage ${m.group(1)}' : 'Stage –';
+    final lang = (t['language'] ?? '').toString();
+    return lang.isEmpty ? stage : '$lang $stage';
   }
 
   Widget _badge(String text, Color color) {

@@ -39,10 +39,14 @@ dependencies:
   google_fonts: ^8.2.1
   get_storage: ^2.1.1
   url_launcher: ^6.3.2
-  intl: ^0.20.3
+  intl: ^0.20.2
   socket_io_client: ^3.1.6
   firebase_auth: ^6.5.7
   wakelock_plus: ^1.2.8
+  file_picker: ^13.1.0
+  video_player: ^2.14.1
+  stream_video_flutter: ^1.7.1
+
 
 dev_dependencies:
   flutter_test:
@@ -69,9 +73,8 @@ flutter:
 
   # To add assets to your application, add an assets section, like this:
   assets:
-    - assets/images/Blue Chat Bubble Manager Logo.png
+    - assets/images/manger logo with 600px.png
     - assets/images/blue icon.png
-    - assets/images/Blue Chat 4x.png
   #   - images/a_dot_ham.jpeg
 
   # An image asset can refer to one or more resolution-specific "variants", see

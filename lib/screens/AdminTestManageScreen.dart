@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:lets_speake_manager/Api/ApiendPoints.dart';
+import 'package:lets_speake_manager/Api/api_headers.dart';
 import 'package:lets_speake_manager/Navigation/AdminShellNavigation.dart';
 
 
@@ -61,13 +62,251 @@ class _AdminTestManageScreenState extends State<AdminTestManageScreen> {
   List<Map<String, dynamic>> questionsList = [];
   List<dynamic> resultsList = [];
 
+  // The test students see right now for the selected language + stage
+  Map<String, dynamic>? liveTest; // null = loading
+  bool togglingActive = false;
+  int durationMinutes = 25;
+
   @override
   void initState() {
     super.initState();
     selectedLanguage = 'English';
     selectedStage = 'stage1';
     fetchResults();
+    fetchLiveTest();
   }
+
+  // ---------------------------------------------------------------
+  // LIVE TEST (what students see now)
+  // ---------------------------------------------------------------
+  Future<void> fetchLiveTest() async {
+    if (mounted) setState(() => liveTest = null);
+    try {
+      final res = await http.get(
+        Uri.parse('${ApiEndpoints.baseUrl}/test/admin/get-test?language=$selectedLanguage&stage=$selectedStage'),
+        headers: ApiHeaders.auth(),
+      );
+      if (!mounted) return;
+      if (res.statusCode == 200) {
+        final data = Map<String, dynamic>.from(jsonDecode(res.body));
+        setState(() {
+          liveTest = data;
+          if (data['exists'] == true) {
+            durationMinutes = int.tryParse('${data['durationMinutes'] ?? 25}') ?? 25;
+          }
+        });
+      } else {
+        setState(() => liveTest = {'exists': false, 'error': true});
+      }
+    } catch (e) {
+      debugPrint('fetchLiveTest error: $e');
+      if (mounted) setState(() => liveTest = {'exists': false, 'error': true});
+    }
+  }
+
+  Future<void> toggleActive(bool active) async {
+    setState(() => togglingActive = true);
+    try {
+      final res = await http.post(
+        Uri.parse('${ApiEndpoints.baseUrl}/test/admin/test-active'),
+        headers: ApiHeaders.json(),
+        body: jsonEncode({'language': selectedLanguage, 'stage': selectedStage, 'isActive': active}),
+      );
+      if (res.statusCode == 200) {
+        _showMessage(active ? 'Test is live' : 'Test paused',
+            active ? 'Students can take it now.' : 'Students can\'t start it until you resume. Results are kept.',
+            color: active ? success : warning);
+        await fetchLiveTest();
+      } else {
+        _showMessage('Could not change', 'Server error (${res.statusCode}).', color: error);
+      }
+    } catch (_) {
+      _showMessage('Connection error', 'Please try again.', color: error);
+    } finally {
+      if (mounted) setState(() => togglingActive = false);
+    }
+  }
+
+  void showLiveQuestions() {
+    final qs = List<dynamic>.from(liveTest?['questions'] ?? const []);
+    Get.bottomSheet(
+      Container(
+        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        decoration: const BoxDecoration(
+          color: surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(color: border, borderRadius: BorderRadius.circular(4)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text('$selectedLanguage • ${_stageLabel(selectedStage)} — ${qs.length} questions',
+                style: GoogleFonts.poppins(color: text, fontSize: 15, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 10),
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: qs.length,
+                itemBuilder: (_, i) {
+                  final q = Map<String, dynamic>.from(qs[i] as Map);
+                  return _queueItemReadOnly(i, q);
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+      isScrollControlled: true,
+    );
+  }
+
+  Widget _queueItemReadOnly(int index, Map<String, dynamic> question) {
+    final options = List<dynamic>.from(question['options'] ?? const []);
+    final correct = _asInt(question['correctOptionIndex']);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(11),
+      decoration: BoxDecoration(color: soft, borderRadius: BorderRadius.circular(12), border: Border.all(color: border)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('${index + 1}. ${question['questionText'] ?? ''}',
+              style: GoogleFonts.poppins(color: text, fontSize: 11.5, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 6),
+          ...List.generate(options.length, (o) {
+            final ok = o == correct;
+            return Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: Row(
+                children: [
+                  Icon(ok ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                      size: 14, color: ok ? success : secondary),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text('${options[o]}',
+                        style: GoogleFonts.poppins(
+                            color: ok ? success : text, fontSize: 10.5, fontWeight: ok ? FontWeight.w700 : FontWeight.w500)),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  String _shortDate(dynamic iso) {
+    final d = DateTime.tryParse('${iso ?? ''}')?.toLocal();
+    if (d == null) return '';
+    const m = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final h = d.hour % 12 == 0 ? 12 : d.hour % 12;
+    return '${d.day} ${m[d.month - 1]}, $h:${d.minute.toString().padLeft(2, '0')} ${d.hour >= 12 ? 'PM' : 'AM'}';
+  }
+
+  /// "What students see now" card: live / paused / none + actions
+  Widget _buildLiveTestCard() {
+    final t = liveTest;
+    if (t == null) {
+      return _card(
+        padding: const EdgeInsets.symmetric(vertical: 22),
+        child: const Center(child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: navy))),
+      );
+    }
+    final exists = t['exists'] == true;
+    final active = t['isActive'] == true;
+    final qCount = (t['questions'] as List?)?.length ?? 0;
+    final submissions = _asInt(t['submissions']);
+    final kept = _asInt(t['totalResults']);
+    final Color c = !exists ? secondary : (active ? success : warning);
+
+    return _card(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(color: c.withAlpha(30), borderRadius: BorderRadius.circular(11)),
+                child: Icon(!exists ? Icons.inbox_rounded : (active ? Icons.wifi_tethering_rounded : Icons.pause_circle_rounded),
+                    color: c, size: 20),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      !exists
+                          ? 'No test for ${_stageLabel(selectedStage)} yet'
+                          : active
+                              ? 'Live for students'
+                              : 'Paused — students can\'t start it',
+                      style: GoogleFonts.poppins(color: text, fontSize: 13, fontWeight: FontWeight.w800),
+                    ),
+                    Text(
+                      !exists
+                          ? (kept > 0 ? '$kept old results are saved. Publish a test below.' : 'Add questions below and publish.')
+                          : '$qCount questions • $durationMinutes min • published ${_shortDate(t['publishedAt'])}',
+                      style: GoogleFonts.poppins(color: secondary, fontSize: 10, height: 1.35),
+                    ),
+                  ],
+                ),
+              ),
+              if (exists)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                  decoration: BoxDecoration(color: soft, borderRadius: BorderRadius.circular(20)),
+                  child: Text('$submissions done',
+                      style: GoogleFonts.poppins(color: navy, fontSize: 10, fontWeight: FontWeight.w800)),
+                ),
+            ],
+          ),
+          if (exists) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _smallAction(Icons.visibility_rounded, 'View questions', navy, showLiveQuestions),
+                _smallAction(
+                  active ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                  togglingActive ? 'Saving…' : (active ? 'Pause' : 'Resume'),
+                  active ? warning : success,
+                  togglingActive ? null : () => toggleActive(!active),
+                ),
+                _smallAction(Icons.delete_outline_rounded, 'Delete test', error, deleteTest),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _smallAction(IconData icon, String label, Color color, VoidCallback? onTap) => OutlinedButton.icon(
+        onPressed: onTap,
+        icon: Icon(icon, size: 16),
+        label: Text(label, style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w700)),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: color,
+          side: BorderSide(color: color.withAlpha(90)),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
 
   @override
   void dispose() {
@@ -119,16 +358,43 @@ class _AdminTestManageScreenState extends State<AdminTestManageScreen> {
       return;
     }
 
+    // Replacing a live test → confirm first
+    if (liveTest?['exists'] == true) {
+      final ok = await Get.dialog<bool>(
+        AlertDialog(
+          backgroundColor: surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          title: Text('Replace the current test?',
+              style: GoogleFonts.poppins(color: text, fontSize: 16, fontWeight: FontWeight.w700)),
+          content: Text(
+            'The ${(liveTest?['questions'] as List?)?.length ?? 0}-question test will be replaced by these ${questionsList.length} questions.\n\n'
+            '• All students can take the new test\n• Old results stay saved',
+            style: GoogleFonts.poppins(color: secondary, fontSize: 12, height: 1.5),
+          ),
+          actions: [
+            TextButton(onPressed: () => Get.back(result: false), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () => Get.back(result: true),
+              style: ElevatedButton.styleFrom(backgroundColor: navy, foregroundColor: Colors.white, elevation: 0),
+              child: const Text('Replace & publish'),
+            ),
+          ],
+        ),
+      );
+      if (ok != true) return;
+    }
+
     setState(() => isUploading = true);
 
     try {
       final response = await http.post(
         Uri.parse(ApiEndpoints.updateTest),
-        headers: {'Content-Type': 'application/json'},
+        headers: ApiHeaders.json(),
         body: jsonEncode({
           'language': selectedLanguage,
           'stage': selectedStage,
           'isActive': true,
+          'durationMinutes': durationMinutes,
           'questions': questionsList,
         }),
       );
@@ -138,9 +404,10 @@ class _AdminTestManageScreenState extends State<AdminTestManageScreen> {
         setState(() => questionsList.clear());
         _showMessage(
           'Test published',
-          '$selectedLanguage ${_stageLabel(selectedStage)} is now active.',
+          '$selectedLanguage ${_stageLabel(selectedStage)} is now live for students.',
           color: success,
         );
+        fetchLiveTest();
       } else {
         String message = 'Upload failed.';
         try {
@@ -165,9 +432,9 @@ class _AdminTestManageScreenState extends State<AdminTestManageScreen> {
 
   Future<void> deleteTest() async {
     Get.defaultDialog(
-      title: 'Delete active test?',
+      title: 'Delete this test?',
       middleText:
-          'Remove the active $selectedLanguage ${_stageLabel(selectedStage)} test?',
+          'The $selectedLanguage ${_stageLabel(selectedStage)} test will be removed for students.\n\nStudent results are NOT deleted — they stay saved.',
       textConfirm: 'Delete test',
       textCancel: 'Cancel',
       confirmTextColor: Colors.white,
@@ -191,7 +458,7 @@ class _AdminTestManageScreenState extends State<AdminTestManageScreen> {
             'DELETE',
             Uri.parse(ApiEndpoints.deleteTest),
           );
-          request.headers['Content-Type'] = 'application/json';
+          request.headers.addAll(ApiHeaders.json());
           request.body = jsonEncode({
             'language': selectedLanguage,
             'stage': selectedStage,
@@ -201,11 +468,17 @@ class _AdminTestManageScreenState extends State<AdminTestManageScreen> {
           final response = await http.Response.fromStream(streamed);
 
           if (response.statusCode == 200) {
+            String kept = '';
+            try {
+              final d = jsonDecode(response.body);
+              if (d is Map && d['resultsKept'] != null) kept = ' ${d['resultsKept']} results kept.';
+            } catch (_) {}
             _showMessage(
               'Test deleted',
-              'The active test has been removed.',
+              'Students no longer see this test.$kept',
               color: success,
             );
+            await fetchLiveTest();
             await fetchResults();
           } else {
             _showMessage(
@@ -234,6 +507,7 @@ class _AdminTestManageScreenState extends State<AdminTestManageScreen> {
         Uri.parse(
           '${ApiEndpoints.testResults}?language=$selectedLanguage&stage=$selectedStage',
         ),
+        headers: ApiHeaders.auth(),
       );
 
       if (response.statusCode == 200) {
@@ -369,12 +643,14 @@ class _AdminTestManageScreenState extends State<AdminTestManageScreen> {
   void _changeLanguage(String value) {
     if (selectedLanguage == value) return;
     setState(() => selectedLanguage = value);
+    fetchLiveTest();
     if (selectedTab == 1) fetchResults();
   }
 
   void _changeStage(String value) {
     if (selectedStage == value) return;
     setState(() => selectedStage = value);
+    fetchLiveTest();
     if (selectedTab == 1) fetchResults();
   }
 
@@ -624,6 +900,8 @@ class _AdminTestManageScreenState extends State<AdminTestManageScreen> {
         children: [
           _buildContextCard(),
           const SizedBox(height: 12),
+          _buildLiveTestCard(),
+          const SizedBox(height: 12),
           if (isDesktop)
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -690,13 +968,20 @@ class _AdminTestManageScreenState extends State<AdminTestManageScreen> {
                   ),
                 ),
               ),
-              TextButton.icon(
-                onPressed: deleteTest,
-                icon: const Icon(Icons.delete_outline_rounded, size: 16),
-                label: const Text('Delete active test'),
-                style: TextButton.styleFrom(
-                  foregroundColor: error,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
+              const Icon(Icons.timer_outlined, color: navy, size: 16),
+              const SizedBox(width: 4),
+              DropdownButtonHideUnderline(
+                child: DropdownButton<int>(
+                  value: const [10, 15, 20, 25, 30, 40, 45, 60].contains(durationMinutes) ? durationMinutes : 25,
+                  isDense: true,
+                  dropdownColor: surface,
+                  style: GoogleFonts.poppins(color: text, fontSize: 11, fontWeight: FontWeight.w700),
+                  items: const [10, 15, 20, 25, 30, 40, 45, 60]
+                      .map((m) => DropdownMenuItem<int>(value: m, child: Text('$m min')))
+                      .toList(),
+                  onChanged: (v) {
+                    if (v != null) setState(() => durationMinutes = v);
+                  },
                 ),
               ),
             ],
