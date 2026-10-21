@@ -33,6 +33,7 @@ import 'package:lets_speake_manager/screens/AdminPromoScreen.dart';
 import 'package:lets_speake_manager/screens/AdminSpecialClassScreen.dart';
 
 import 'package:lets_speake_manager/screens/LeaderboardScreen.dart';
+import 'package:lets_speake_manager/screens/AdminAppUpdateScreen.dart';
 
 class Adime_home_screen extends StatefulWidget {
   const Adime_home_screen({super.key});
@@ -156,6 +157,13 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
       icon: Icons.emoji_events_rounded,
       color: Color(0xFFE3B21B),
     ),
+    _AdminModule(
+      index: 12,
+      title: 'App Update',
+      subtitle: '"New version available" for students',
+      icon: Icons.system_update_rounded,
+      color: Color(0xFF16A66A),
+    ),
   ];
 
   // ============================================================
@@ -165,7 +173,7 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
   // 9-11 = engage modules
   // ============================================================
 
-  static const int pageCount = 12;
+  static const int pageCount = 13; // 12 = App Update
 
   final List<Widget?> _pages = List<Widget?>.filled(pageCount, null);
 
@@ -269,6 +277,10 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
 
       case 11:
         return const LeaderboardScreen(embedded: true, role: 'student');
+
+      // 📲 "New version available" message for students
+      case 12:
+        return const AdminAppUpdateScreen(embedded: true);
 
       default:
         return const SizedBox.shrink();
