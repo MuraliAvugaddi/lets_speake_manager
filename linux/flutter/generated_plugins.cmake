@@ -5,7 +5,6 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   flutter_webrtc
   livekit_client
-  stream_webrtc_flutter
   url_launcher_linux
 )
 
