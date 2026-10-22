@@ -699,9 +699,20 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
     HapticFeedback.mediumImpact();
     setState(() => isSaving = true);
     try {
-      await adminController.updateUserAccess(_userId, englishAccess, hindiAccess, selectedMode);
-
       final section = _isOnline && hasEnglish ? selectedSection : 'None';
+      // Access + timings in ONE request → the server checks clashes with the NEW timings.
+      // If it refuses, stop here and show why (nothing half-saved).
+      await adminController.updateUserAccess(
+        _userId,
+        englishAccess,
+        hindiAccess,
+        selectedMode,
+        englishBatch: englishBatch,
+        hindiBatch: hindiBatch,
+        batchTime: selectedBatch,
+        onlineSection: section,
+      );
+
       final response = await http.put(
         Uri.parse(ApiEndpoints.updateStudentStatus),
         headers: ApiHeaders.json(),
@@ -755,6 +766,8 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
         } catch (_) {}
         _snack("Not saved", msg, red, icon: Icons.error_outline_rounded);
       }
+    } on AccessSaveException catch (e) {
+      _snack("Not saved", e.message, red, icon: Icons.error_outline_rounded);
     } catch (e) {
       _snack("Not saved", "Connection error: $e", red, icon: Icons.error_outline_rounded);
     } finally {

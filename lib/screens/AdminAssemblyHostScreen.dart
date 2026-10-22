@@ -6,8 +6,8 @@ import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
-import 'package:stream_video_flutter/stream_video_flutter.dart';
-import 'package:stream_video_flutter/stream_video_flutter.dart' as svf show Priority;
+import 'package:lets_speake_manager/rtc/live_room.dart'; // 🎧 LiveKit audio classes (same names as before)
+import 'package:lets_speake_manager/rtc/live_room.dart' as svf show Priority;
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:lets_speake_manager/Api/ApiendPoints.dart';
 import 'package:lets_speake_manager/Api/api_headers.dart';
@@ -87,7 +87,7 @@ class _AdminAssemblyHostScreenState extends State<AdminAssemblyHostScreen> {
 
       // 1) Stream token (server gives admins the host role)
       final tokenRes = await http
-          .post(Uri.parse("${ApiEndpoints.baseUrl}/stream/token"),
+          .post(Uri.parse("${ApiEndpoints.baseUrl}/rtc/token"),
               headers: ApiHeaders.json(), body: jsonEncode({"userId": _userId}))
           .timeout(const Duration(seconds: 25));
       if (tokenRes.statusCode != 200) throw Exception('Could not get class access (${tokenRes.statusCode})');
@@ -98,7 +98,7 @@ class _AdminAssemblyHostScreenState extends State<AdminAssemblyHostScreen> {
 
       // 2) Server creates today's special class call
       final prepRes = await http
-          .post(Uri.parse("${ApiEndpoints.baseUrl}/stream/prepare-call"),
+          .post(Uri.parse("${ApiEndpoints.baseUrl}/rtc/prepare-call"),
               headers: ApiHeaders.json(), body: jsonEncode({"userId": _userId, "type": "assembly"}))
           .timeout(const Duration(seconds: 25));
       final prep = jsonDecode(prepRes.body);

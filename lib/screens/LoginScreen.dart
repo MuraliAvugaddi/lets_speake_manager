@@ -200,7 +200,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Image.asset(
-              'assets/images/blue icon.png',
+              'assets/images/Blue Chat 4x.png',
               width: 80,
               height: 80,
               fit: BoxFit.contain,
