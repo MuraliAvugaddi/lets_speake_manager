@@ -51,6 +51,16 @@ class _AdminSpecialClassScreenState extends State<AdminSpecialClassScreen> {
   final reasonCtrl = TextEditingController();
   bool customReason = false;
   String get _reason => customReason ? reasonCtrl.text.trim() : pickedReason;
+
+  // Which offline stages go online (empty = ALL stages). Others stay at the institute.
+  final Set<int> rainStages = <int>{};
+  String get _stagesText => rainStages.isEmpty
+      ? 'All stages'
+      : (rainStages.toList()..sort()).map((n) => 'Stage $n').join(', ');
+  List<String> get _onStages {
+    final st = rain?['stages'];
+    return st is List ? st.map((e) => e.toString()).toList() : const [];
+  }
   TimeOfDay pickedTime = const TimeOfDay(hour: 11, minute: 0);
 
   bool get rainOn => rain?['active'] == true;
@@ -140,7 +150,7 @@ class _AdminSpecialClassScreenState extends State<AdminSpecialClassScreen> {
     final ok = await _confirm(
       active ? 'Move offline classes online?' : 'Back to normal?',
       active
-          ? 'Reason: $_reason\n\nAll OFFLINE trainers will see "Start live audio class" instead of institute check-in, and offline students will see "Join online class". Attendance is taken online until you remove this.'
+          ? 'Reason: $_reason\nStages: $_stagesText\n\n${rainStages.isEmpty ? 'All OFFLINE' : 'OFFLINE $_stagesText'} trainers will see "Start live audio class" instead of institute check-in, and those students will see "Join online class".${rainStages.isEmpty ? '' : ' Other stages stay at the institute as usual.'} Attendance is taken online until you remove this.'
           : 'Offline trainers and students go back to institute (GPS) attendance.',
       active ? 'Move online' : 'Back to normal',
       active ? blue : green,
@@ -149,7 +159,11 @@ class _AdminSpecialClassScreenState extends State<AdminSpecialClassScreen> {
     setState(() => savingRain = true);
     try {
       final res = await http.post(Uri.parse('$_api/rain'),
-          headers: ApiHeaders.json(), body: jsonEncode({'active': active, 'reason': _reason}));
+          headers: ApiHeaders.json(), body: jsonEncode({
+            'active': active,
+            'reason': _reason,
+            if (active) 'stages': (rainStages.toList()..sort()).map((n) => 'stage$n').toList(),
+          }));
       if (res.statusCode == 200) {
         _snack(active ? '🌐 Offline classes are online' : 'Back to normal', _msg(res, ''), active ? blue : green);
         await _load();
@@ -422,6 +436,37 @@ class _AdminSpecialClassScreenState extends State<AdminSpecialClassScreen> {
                 ),
               ),
             ],
+            const SizedBox(height: 14),
+            // 🎯 stage-wise: Stage 1 only, Stage 1 + 3, or all
+            Text('Which stages go online?',
+                style: GoogleFonts.poppins(color: textColor, fontSize: 11.5, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 3),
+            Text('Pick one or more. Stages you don\'t pick stay offline (institute).',
+                style: GoogleFonts.poppins(color: secondaryText, fontSize: 10.5)),
+            const SizedBox(height: 7),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                ChoiceChip(
+                  label: Text('All stages', style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w700)),
+                  selected: rainStages.isEmpty,
+                  selectedColor: blue.withOpacity(.18),
+                  onSelected: (_) => setState(() => rainStages.clear()),
+                ),
+                for (int n = 1; n <= 7; n++)
+                  FilterChip(
+                    label: Text('Stage $n', style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w600)),
+                    selected: rainStages.contains(n),
+                    selectedColor: blue.withOpacity(.18),
+                    checkmarkColor: blue,
+                    onSelected: (v) => setState(() {
+                      v ? rainStages.add(n) : rainStages.remove(n);
+                      if (rainStages.length == 7) rainStages.clear(); // all 7 = all stages
+                    }),
+                  ),
+              ],
+            ),
             const SizedBox(height: 12),
           ],
           _point(Icons.school_rounded, 'Offline trainers: "Mark institute attendance" becomes "Start live audio class".'),
@@ -433,6 +478,27 @@ class _AdminSpecialClassScreenState extends State<AdminSpecialClassScreen> {
             if ((rain?['note'] ?? '').toString().isNotEmpty)
               Text('Reason: ${rain?['note']}',
                   style: GoogleFonts.poppins(color: textColor, fontSize: 12, fontWeight: FontWeight.w700)),
+            Padding(
+              padding: const EdgeInsets.only(top: 6, bottom: 4),
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text('Online now:', style: GoogleFonts.poppins(color: textColor, fontSize: 11.5, fontWeight: FontWeight.w700)),
+                  for (final st in (_onStages.isEmpty ? ['All stages'] : _onStages))
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                      decoration: BoxDecoration(color: blue.withOpacity(.12), borderRadius: BorderRadius.circular(20)),
+                      child: Text(st.replaceAll('stage', 'Stage '),
+                          style: GoogleFonts.poppins(color: blue, fontSize: 11, fontWeight: FontWeight.w700)),
+                    ),
+                  if (_onStages.isNotEmpty)
+                    Text('• other stages offline',
+                        style: GoogleFonts.poppins(color: secondaryText, fontSize: 10.5)),
+                ],
+              ),
+            ),
             Text(_since(rain), style: GoogleFonts.poppins(color: blue, fontSize: 10.5, fontWeight: FontWeight.w600)),
           ],
           const SizedBox(height: 14),
@@ -446,7 +512,7 @@ class _AdminSpecialClassScreenState extends State<AdminSpecialClassScreen> {
                   onTap: () => _setRain(false),
                 )
               : _bigButton(
-                  text: 'Move all offline classes online',
+                  text: rainStages.isEmpty ? 'Move all offline classes online' : 'Move $_stagesText online',
                   icon: Icons.cloud_rounded,
                   color: blue,
                   busy: savingRain,

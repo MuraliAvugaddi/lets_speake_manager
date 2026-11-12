@@ -1,12 +1,12 @@
 class ApiEndpoints {
-   static const String baseUrl = "https://api.letsspeakglobal.com/api";
-   //   "http://192.168.1.4:5001/api";
+  static const String baseUrl = "https://api.letsspeakglobal.com/api";
+ // static const String baseUrl = "http://192.168.1.14:5001/api";
 
   // Auth Endpoints
   static const String login = "$baseUrl/login";
   static const String register = "$baseUrl/register";
 
-  // User Managementflutter upgrade
+  // User Management
   static const String users = "$baseUrl/users";
   static const String updateAccess = "$baseUrl/update-access";
   static const String updateStudentStatus =

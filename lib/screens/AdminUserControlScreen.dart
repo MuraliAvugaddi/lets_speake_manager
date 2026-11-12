@@ -11,6 +11,8 @@ import 'package:lets_speake_manager/Api/batch_slots.dart';
 import 'package:lets_speake_manager/Controllers/adminController.dart';
 import 'package:lets_speake_manager/Navigation/AdminShellNavigation.dart';
 import 'package:lets_speake_manager/screens/AttendanceReportScreen.dart';
+import 'package:lets_speake_manager/screens/AdminModeChangesScreen.dart';
+import 'package:lets_speake_manager/screens/AdminDropoutsScreen.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 
 /// Student Control — mode, course access, per-stage section + timing.
@@ -1780,6 +1782,14 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
               setState(() => selectedMode = 'offline');
             }),
           ]),
+          const SizedBox(height: 10),
+
+          // ---- 🔁 only for some days (1 day / 2 days / 1 week) ----
+          _tempModeRow(),
+          const SizedBox(height: 10),
+
+          // ---- 🚪 dropout ----
+          _dropoutRow(),
           const SizedBox(height: 12),
 
           // ---- section (online only) ----
@@ -1808,6 +1818,96 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
         ],
       ),
     );
+  }
+
+  Widget _tempModeRow() {
+    final temp = tempModeText(_user);
+    if (temp != null) {
+      return _infoRow(
+        icon: Icons.schedule_rounded,
+        color: const Color(0xFFE59E1B),
+        title: temp,
+        subtitle: 'Goes back by itself • tap to end now',
+        action: 'End now',
+        onTap: () async {
+          final u = await endTempModeNow(context, _userId, _studentName);
+          if (u != null) _afterModeChange(u);
+        },
+      );
+    }
+    return _infoRow(
+      icon: Icons.event_repeat_rounded,
+      color: navy,
+      title: 'Change only for some days',
+      subtitle: '1 day • 2 days • 1 week — comes back by itself',
+      action: 'Change',
+      onTap: () async {
+        if (_dirty) {
+          _snack('Save first', 'Save your other changes first, then change the mode.', amberText,
+              icon: Icons.save_rounded);
+          return;
+        }
+        final u = await showModeChangeSheet(context, _user);
+        if (u != null) _afterModeChange(u);
+      },
+    );
+  }
+
+  Widget _dropoutRow() {
+    if (_user['isDropout'] == true) {
+      return _infoRow(
+        icon: Icons.person_off_rounded,
+        color: const Color(0xFFE45757),
+        title: 'Dropout — all access is off',
+        subtitle: 'See reason, fees and call notes in Dropouts',
+        action: 'Open',
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const AdminDropoutsScreen()),
+        ),
+      );
+    }
+    return _infoRow(
+      icon: Icons.person_remove_alt_1_rounded,
+      color: const Color(0xFFE45757),
+      title: 'Student stopped coming?',
+      subtitle: 'Mark as dropout with a reason (access goes off)',
+      action: 'Dropout',
+      onTap: () async {
+        if (_dirty) {
+          _snack('Save first', 'Save your other changes first.', amberText, icon: Icons.save_rounded);
+          return;
+        }
+        final ok = await showMarkDropoutSheet(context, _user);
+        if (!ok || !mounted) return;
+        final off = {for (var i = 1; i <= 7; i++) 'stage$i': false};
+        setState(() {
+          _user = {
+            ..._user,
+            'isDropout': true,
+            'droppedAt': DateTime.now().toIso8601String(),
+            'englishAccess': off,
+            'hindiAccess': Map<String, bool>.from(off),
+          };
+          _pendingRemote = null;
+          _readFrom(_user);
+        });
+      },
+    );
+  }
+
+  void _afterModeChange(Map<String, dynamic> u) {
+    if (!mounted) return;
+    setState(() {
+      _user = {
+        ..._user,
+        'mode': u['mode'] ?? _user['mode'],
+        'modeBase': u['modeBase'] ?? '',
+        'modeTempUntil': u['modeTempUntil'],
+      };
+      _pendingRemote = null;
+      _readFrom(_user);
+    });
   }
 
   Widget _infoRow({

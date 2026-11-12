@@ -34,6 +34,11 @@ import 'package:lets_speake_manager/screens/AdminSpecialClassScreen.dart';
 
 import 'package:lets_speake_manager/screens/LeaderboardScreen.dart';
 import 'package:lets_speake_manager/screens/AdminAppUpdateScreen.dart';
+import 'package:lets_speake_manager/screens/AdminModeChangesScreen.dart';
+import 'package:lets_speake_manager/screens/AdminTestDraftsScreen.dart';
+import 'package:lets_speake_manager/screens/AdminDropoutsScreen.dart';
+import 'package:lets_speake_manager/screens/AdminLiveClassesScreen.dart';
+import 'package:lets_speake_manager/Api/admin_live.dart';
 
 class Adime_home_screen extends StatefulWidget {
   const Adime_home_screen({super.key});
@@ -131,6 +136,42 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
       icon: Icons.verified_rounded,
       color: success,
     ),
+
+    // ✍️ tests written by trainers → approve / release
+    _AdminModule(
+      index: 14,
+      title: 'Trainer Tests',
+      subtitle: 'Approve & release trainer tests',
+      icon: Icons.rate_review_outlined,
+      color: Color(0xFF7A5AF8),
+    ),
+
+    // 🔁 online ↔ offline for 1 day / 2 days / 1 week
+    _AdminModule(
+      index: 13,
+      title: 'Converted Students',
+      subtitle: 'Online ↔ offline for some days',
+      icon: Icons.swap_horiz_rounded,
+      color: Color(0xFFE59E1B),
+    ),
+
+    // 🚪 students who stopped in the middle (principal calls them)
+    _AdminModule(
+      index: 15,
+      title: 'Dropouts',
+      subtitle: 'Who stopped, why, fees pending',
+      icon: Icons.person_off_rounded,
+      color: Color(0xFFE45757),
+    ),
+
+    // 👀 listen to any running class quietly (English section / Hindi / offline)
+    _AdminModule(
+      index: 16,
+      title: 'Watch Live Classes',
+      subtitle: 'Listen to any class quietly',
+      icon: Icons.headphones_rounded,
+      color: Color(0xFF0E6BA8),
+    ),
   ];
 
   // ENGAGE — screens for announcements, special days and rankings
@@ -173,7 +214,7 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
   // 9-11 = engage modules
   // ============================================================
 
-  static const int pageCount = 13; // 12 = App Update
+  static const int pageCount = 17; // 12 = App Update, 13 = Converted Students, 14 = Trainer Tests, 15 = Dropouts, 16 = Watch Live Classes
 
   final List<Widget?> _pages = List<Widget?>.filled(pageCount, null);
 
@@ -221,6 +262,7 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
   // ============================================================
 
   void _logout() {
+    AdminLive.reset(); // close live updates (next login opens a new one)
     GetStorage().erase();
 
     Get.offAll(() => const AdminLoginScreen());
@@ -281,6 +323,22 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
       // 📲 "New version available" message for students
       case 12:
         return const AdminAppUpdateScreen(embedded: true);
+
+      // 🔁 online ↔ offline for some days
+      case 13:
+        return const AdminModeChangesScreen(embedded: true);
+
+      // ✍️ trainer tests waiting for approval
+      case 14:
+        return const AdminTestDraftsScreen(embedded: true);
+
+      // 🚪 dropouts
+      case 15:
+        return const AdminDropoutsScreen(embedded: true);
+
+      // 👀 watch live classes
+      case 16:
+        return const AdminLiveClassesScreen(embedded: true);
 
       default:
         return const SizedBox.shrink();

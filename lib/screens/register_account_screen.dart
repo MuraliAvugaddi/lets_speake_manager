@@ -800,6 +800,233 @@ class _RegisterAccountScreenState extends State<RegisterAccountScreen> {
     );
   }
 
+
+  // ✏️ EDIT TRAINER / MANAGER — name, phone (= login username), new password,
+  //    and for trainers: language, online/offline, stage, section
+  Future<void> _openEditStaff(dynamic staff) async {
+    final String id = (staff['_id'] ?? staff['id'] ?? '').toString();
+    final bool isManager = (staff['role'] ?? '').toString().toLowerCase() == 'manager';
+    final nameC = TextEditingController(text: (staff['name'] ?? '').toString());
+    final phoneC = TextEditingController(
+      text: (staff['phone'] ?? '').toString().replaceAll(RegExp(r'\D'), '').replaceFirst(RegExp(r'^(91|0)(?=\d{10}$)'), ''),
+    );
+    final passC = TextEditingController();
+    String language = (staff['language'] ?? 'English').toString();
+    String mode = (staff['mode'] ?? 'online').toString().toLowerCase();
+    String stage = (staff['teacherStage'] ?? 'stage1').toString();
+    String section = (staff['teacherSection'] ?? 'A').toString();
+    if (!['English', 'Hindi'].contains(language)) language = 'English';
+    if (!['online', 'offline'].contains(mode)) mode = 'online';
+    if (!allStages.contains(stage)) stage = 'stage1';
+    if (!allSections.contains(section) || section == 'None') section = 'A';
+    bool saving = false;
+    bool hidePass = true;
+    String? err;
+
+    InputDecoration deco(String label, IconData icon) => InputDecoration(
+          labelText: label,
+          prefixIcon: Icon(icon, size: 19, color: navy),
+          filled: true,
+          fillColor: softSurface,
+          isDense: true,
+          labelStyle: GoogleFonts.poppins(fontSize: 12, color: secondaryText),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: border)),
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: border)),
+          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: navy, width: 1.3)),
+        );
+
+    Widget pills(List<String> items, String value, String Function(String) label, void Function(String) onTap) => Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: items.map((e) {
+            final sel = e == value;
+            return ChoiceChip(
+              label: Text(label(e)),
+              selected: sel,
+              showCheckmark: false,
+              labelStyle: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w700, color: sel ? Colors.white : textColor),
+              selectedColor: navy,
+              backgroundColor: softSurface,
+              side: BorderSide(color: sel ? navy : border),
+              onSelected: (_) => onTap(e),
+            );
+          }).toList(),
+        );
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) => StatefulBuilder(
+        builder: (ctx, setSheet) {
+          final bool showSection = !isManager && language == 'English' && mode == 'online';
+
+          Future<void> save() async {
+            final name = nameC.text.trim();
+            final phone = phoneC.text.replaceAll(RegExp(r'\D'), '');
+            final pass = passC.text.trim();
+            if (name.length < 2) return setSheet(() => err = 'Enter the name');
+            if (phone.length != 10) return setSheet(() => err = 'Enter a valid 10-digit phone number');
+            if (pass.isNotEmpty && pass.length < 6) return setSheet(() => err = 'Password must be at least 6 characters');
+            setSheet(() {
+              saving = true;
+              err = null;
+            });
+            try {
+              final body = <String, dynamic>{
+                'name': name,
+                'phone': phone,
+                if (pass.isNotEmpty) 'password': pass,
+                if (!isManager) ...{
+                  'language': language,
+                  'mode': language == 'Hindi' ? 'online' : mode,
+                  'teacherStage': stage,
+                  'teacherSection': showSection ? section : 'None',
+                },
+              };
+              final res = await http
+                  .put(Uri.parse("${ApiEndpoints.baseUrl}/admin/staff/$id"),
+                      headers: ApiHeaders.json(), body: jsonEncode(body))
+                  .timeout(const Duration(seconds: 20));
+              final data = jsonDecode(res.body);
+              if (res.statusCode == 200) {
+                if (Navigator.of(sheetCtx).canPop()) Navigator.of(sheetCtx).pop();
+                _message(
+                  "Saved",
+                  pass.isNotEmpty
+                      ? "${data['message'] ?? 'Updated'}\nThey must log in again with the new password."
+                      : (data['message'] ?? 'Updated').toString(),
+                );
+                await fetchRegisteredStaff();
+                return;
+              }
+              setSheet(() {
+                saving = false;
+                err = (data['message'] ?? 'Could not save').toString();
+              });
+            } catch (_) {
+              setSheet(() {
+                saving = false;
+                err = 'Could not connect to the server.';
+              });
+            }
+          }
+
+          return Padding(
+            padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+            child: Container(
+              constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * .9),
+              decoration: const BoxDecoration(
+                color: surface,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: SafeArea(
+                top: false,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(color: border, borderRadius: BorderRadius.circular(4)),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Text(isManager ? 'Edit manager' : 'Edit trainer',
+                          style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w800, color: textColor)),
+                      Text('Phone number is the login username',
+                          style: GoogleFonts.poppins(fontSize: 11, color: secondaryText)),
+                      const SizedBox(height: 14),
+                      TextField(
+                        controller: nameC,
+                        textCapitalization: TextCapitalization.words,
+                        style: GoogleFonts.poppins(fontSize: 13),
+                        decoration: deco('Full name', Icons.person_outline_rounded),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: phoneC,
+                        keyboardType: TextInputType.phone,
+                        maxLength: 10,
+                        style: GoogleFonts.poppins(fontSize: 13),
+                        decoration: deco('Phone (login username)', Icons.phone_outlined).copyWith(counterText: ''),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: passC,
+                        obscureText: hidePass,
+                        style: GoogleFonts.poppins(fontSize: 13),
+                        decoration: deco('New password (leave empty to keep)', Icons.lock_outline_rounded).copyWith(
+                          suffixIcon: IconButton(
+                            icon: Icon(hidePass ? Icons.visibility_off_outlined : Icons.visibility_outlined, size: 19),
+                            onPressed: () => setSheet(() => hidePass = !hidePass),
+                          ),
+                        ),
+                      ),
+                      if (!isManager) ...[
+                        const SizedBox(height: 14),
+                        Text('Language', style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: textColor)),
+                        const SizedBox(height: 6),
+                        pills(const ['English', 'Hindi'], language, (e) => e, (v) => setSheet(() {
+                              language = v;
+                              if (v == 'Hindi') mode = 'online';
+                            })),
+                        if (language == 'English') ...[
+                          const SizedBox(height: 12),
+                          Text('Class type', style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: textColor)),
+                          const SizedBox(height: 6),
+                          pills(const ['online', 'offline'], mode, (e) => e == 'online' ? 'Online' : 'Offline',
+                              (v) => setSheet(() => mode = v)),
+                        ],
+                        const SizedBox(height: 12),
+                        Text('Stage', style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: textColor)),
+                        const SizedBox(height: 6),
+                        pills(allStages, stage, (e) => e.replaceAll('stage', 'Stage '), (v) => setSheet(() => stage = v)),
+                        if (showSection) ...[
+                          const SizedBox(height: 12),
+                          Text('Section', style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: textColor)),
+                          const SizedBox(height: 6),
+                          pills(allSections.where((e) => e != 'None').toList(), section == 'None' ? 'A' : section, (e) => e,
+                              (v) => setSheet(() => section = v)),
+                        ],
+                      ],
+                      if (err != null) ...[
+                        const SizedBox(height: 12),
+                        Text(err!, style: GoogleFonts.poppins(color: error, fontSize: 12, fontWeight: FontWeight.w600)),
+                      ],
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton(
+                          onPressed: saving ? null : save,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: navy,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                          child: saving
+                              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                              : Text('Save changes', style: GoogleFonts.poppins(fontWeight: FontWeight.w800)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+    // (controllers are not disposed here: the sheet may still be closing)
+  }
+
   Widget _staffRow(dynamic staff) {
     final String id = (staff['_id'] ?? staff['id'] ?? '').toString();
     final String name = (staff['name'] ?? 'Unknown').toString();
@@ -886,7 +1113,14 @@ class _RegisterAccountScreenState extends State<RegisterAccountScreen> {
           ),
           const SizedBox(width: 4),
           IconButton(
+            tooltip: "Edit",
+            visualDensity: VisualDensity.compact,
+            onPressed: () => _openEditStaff(staff),
+            icon: const Icon(Icons.edit_outlined, color: navy, size: 19),
+          ),
+          IconButton(
             tooltip: "Delete",
+            visualDensity: VisualDensity.compact,
             onPressed: () => _confirmDelete(id, name),
             icon: const Icon(
               Icons.delete_outline_rounded,

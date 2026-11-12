@@ -51,6 +51,13 @@ class _AdminAssemblyHostScreenState extends State<AdminAssemblyHostScreen> {
   Set<String> trainerIds = <String>{};
   Set<String> staffIds = <String>{};
 
+  // ✋ raised hands + 💬 questions from students (LiveKit data messages)
+  final List<_Hand> hands = <_Hand>[];
+  final List<_Msg> msgs = <_Msg>[];
+  int unreadMsgs = 0;
+  bool _chatOpen = false;
+  StreamSubscription<ClassSignal>? _sigSub;
+
   Map<String, dynamic> get _me {
     final raw = GetStorage().read('user');
     return raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
@@ -68,6 +75,7 @@ class _AdminAssemblyHostScreenState extends State<AdminAssemblyHostScreen> {
 
   @override
   void dispose() {
+    _sigSub?.cancel();
     _tick?.cancel();
     _publishTimer?.cancel();
     WakelockPlus.disable();
@@ -130,6 +138,8 @@ class _AdminAssemblyHostScreenState extends State<AdminAssemblyHostScreen> {
         debugPrint('Mic error: $e');
       }
       call = c;
+      _sigSub?.cancel();
+      _sigSub = c.signals.listen(_onSignal); // ✋ 💬 from students
       _loadPeople();
       await _publishNow(); // students join locked (muted) by default
       // 1 refresh per second is enough — rebuilding on every audio-level change
@@ -272,6 +282,258 @@ class _AdminAssemblyHostScreenState extends State<AdminAssemblyHostScreen> {
     }
   }
 
+  // =========================================================
+  // ✋ RAISE HAND + 💬 QUESTIONS
+  // =========================================================
+  void _onSignal(ClassSignal sig) {
+    if (!mounted || sig.from.isEmpty || sig.fromStaff) return;
+    if (sig.type == 'hand') {
+      final up = sig.data['up'] == true;
+      final i = hands.indexWhere((h) => h.id == sig.from);
+      if (up && i < 0) {
+        setState(() => hands.add(_Hand(sig.from, sig.fromName, DateTime.now())));
+      } else if (!up && i >= 0) {
+        setState(() => hands.removeAt(i));
+      }
+    } else if (sig.type == 'msg') {
+      final text = (sig.data['text'] ?? '').toString().trim();
+      if (text.isEmpty) return;
+      setState(() {
+        msgs.add(_Msg(sig.from, sig.fromName, text.length > 300 ? text.substring(0, 300) : text, DateTime.now(), false));
+        if (msgs.length > 400) msgs.removeAt(0);
+        if (!_chatOpen) unreadMsgs++;
+      });
+    }
+  }
+
+  /// "Allow": hand goes down + this student can unmute (even when everyone is muted)
+  Future<void> _allowHand(_Hand h) async {
+    setState(() {
+      hands.removeWhere((e) => e.id == h.id);
+      if (micLocked) allowed.add(h.id);
+    });
+    _schedulePublish();
+    await call?.sendSignal({'t': 'hand_ok'}, to: [h.id]);
+  }
+
+  Future<void> _lowerHand(String id) async {
+    setState(() => hands.removeWhere((e) => e.id == id));
+    await call?.sendSignal({'t': 'hand_down'}, to: [id]);
+  }
+
+  Future<void> _lowerAllHands() async {
+    final ids = hands.map((h) => h.id).toList();
+    setState(hands.clear);
+    if (ids.isNotEmpty) await call?.sendSignal({'t': 'hand_down'}, to: ids);
+  }
+
+  Future<bool> _sendToAll(String text) async {
+    final t = text.trim();
+    if (t.isEmpty || call == null) return false;
+    final ok = await call!.sendSignal({'t': 'msg', 'text': t});
+    if (ok && mounted) setState(() => msgs.add(_Msg(_userId, 'You → everyone', t, DateTime.now(), true)));
+    return ok;
+  }
+
+  Future<bool> _replyTo(_Msg to, String text) async {
+    final t = text.trim();
+    if (t.isEmpty || call == null) return false;
+    final ok = await call!.sendSignal({'t': 'msg', 'text': t, 'private': true}, to: [to.fromId]);
+    if (ok && mounted) setState(() => msgs.add(_Msg(_userId, 'You → ${to.fromName}', t, DateTime.now(), true)));
+    return ok;
+  }
+
+  void _openHandsSheet() {
+    Get.bottomSheet(
+      StatefulBuilder(builder: (ctx, setSheet) {
+        final list = List<_Hand>.from(hands);
+        Future<void> act(Future<void> Function() f) async {
+          await f();
+          setSheet(() {});
+        }
+
+        return Container(
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * .75),
+          padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(color: Colors.black12, borderRadius: BorderRadius.circular(4)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Text('✋', style: TextStyle(fontSize: 20)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text('Raised hands (${list.length})',
+                          style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w800, color: const Color(0xFF173A52))),
+                    ),
+                    if (list.isNotEmpty)
+                      TextButton(
+                        onPressed: () => act(_lowerAllHands),
+                        child: Text('Lower all', style: GoogleFonts.poppins(color: red, fontWeight: FontWeight.w700)),
+                      ),
+                  ],
+                ),
+                Text(
+                  micLocked
+                      ? 'Everyone is muted. "Allow" lets only that student unmute.'
+                      : 'Mics are open. "Allow" tells the student to speak now.',
+                  style: GoogleFonts.poppins(fontSize: 11.5, color: const Color(0xFF6B8496)),
+                ),
+                const SizedBox(height: 10),
+                if (list.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Center(
+                      child: Text('No hands raised right now.', style: GoogleFonts.poppins(color: Colors.black45)),
+                    ),
+                  )
+                else
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: list.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (_, i) {
+                        final h = list[i];
+                        return Container(
+                          padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF7F4FD),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: const Color(0xFFE6DDF8)),
+                          ),
+                          child: Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 16,
+                                backgroundColor: const Color(0xFFF5C542).withOpacity(.25),
+                                child: Text('${i + 1}',
+                                    style: GoogleFonts.poppins(
+                                        color: const Color(0xFFB7860B), fontWeight: FontWeight.w800, fontSize: 12)),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(h.name.isEmpty ? 'Student' : h.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.poppins(fontWeight: FontWeight.w700, color: const Color(0xFF173A52))),
+                              ),
+                              IconButton(
+                                tooltip: 'Lower hand',
+                                onPressed: () => act(() => _lowerHand(h.id)),
+                                icon: const Icon(Icons.pan_tool_alt_outlined, color: Colors.black38, size: 20),
+                              ),
+                              ElevatedButton(
+                                onPressed: () => act(() => _allowHand(h)),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF16A66A),
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                ),
+                                child: Text('Allow', style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 12)),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      }),
+      isScrollControlled: true,
+    );
+  }
+
+  Future<void> _openChatSheet() async {
+    setState(() {
+      _chatOpen = true;
+      unreadMsgs = 0;
+    });
+    await Get.bottomSheet(
+      _HostChatSheet(
+        messages: () => msgs,
+        sendToAll: _sendToAll,
+        replyTo: _replyTo,
+      ),
+      isScrollControlled: true,
+    );
+    if (mounted) {
+      setState(() {
+        _chatOpen = false;
+        unreadMsgs = 0;
+      });
+    }
+  }
+
+  Widget _handsBanner() {
+    if (hands.isEmpty) return const SizedBox.shrink();
+    final first = hands.first;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      child: Material(
+        color: const Color(0xFFF5C542),
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: _openHandsSheet,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+            child: Row(
+              children: [
+                const Text('✋', style: TextStyle(fontSize: 20)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    hands.length == 1
+                        ? '${first.name} raised a hand'
+                        : '${first.name} and ${hands.length - 1} more raised hands',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(color: const Color(0xFF2A0F57), fontWeight: FontWeight.w700, fontSize: 13),
+                  ),
+                ),
+                if (hands.length == 1)
+                  ElevatedButton(
+                    onPressed: () => _allowHand(first),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF16A66A),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      visualDensity: VisualDensity.compact,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: Text('Allow', style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 12)),
+                  )
+                else
+                  Text('View  ›',
+                      style: GoogleFonts.poppins(color: const Color(0xFF2A0F57), fontWeight: FontWeight.w800, fontSize: 12)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _leave({required bool endForAll}) async {
     if (endForAll) {
       final ok = await Get.dialog<bool>(
@@ -334,6 +596,18 @@ class _AdminAssemblyHostScreenState extends State<AdminAssemblyHostScreen> {
                               overflow: TextOverflow.ellipsis,
                               style: GoogleFonts.poppins(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
                         ),
+                        if (phase == _Phase.live) ...[
+                          IconButton(
+                            tooltip: 'Raised hands',
+                            onPressed: _openHandsSheet,
+                            icon: _badgeIcon(Icons.pan_tool_rounded, hands.length, const Color(0xFFF5C542)),
+                          ),
+                          IconButton(
+                            tooltip: 'Student questions',
+                            onPressed: _openChatSheet,
+                            icon: _badgeIcon(Icons.chat_bubble_rounded, unreadMsgs, red),
+                          ),
+                        ],
                         IconButton(
                           tooltip: 'Who attended',
                           onPressed: () => Get.to(() => const AdminAssemblyReportScreen()),
@@ -420,6 +694,9 @@ class _AdminAssemblyHostScreenState extends State<AdminAssemblyHostScreen> {
       return r != 0 ? r : a.name.toLowerCase().compareTo(b.name.toLowerCase());
     });
     final micOnCount = others.where((p) => p.isAudioEnabled).length;
+    // ✋ a student who left the class → hand goes down
+    final hereIds = others.map((p) => p.userId).toSet();
+    hands.removeWhere((h) => !hereIds.contains(h.id));
     // 👨‍🏫 trainers (and other staff) on top, 🎓 students below
     final trainers = others.where((p) => trainerIds.contains(p.userId) || staffIds.contains(p.userId)).toList();
     final students = others.where((p) => !trainerIds.contains(p.userId) && !staffIds.contains(p.userId)).toList();
@@ -446,6 +723,7 @@ class _AdminAssemblyHostScreenState extends State<AdminAssemblyHostScreen> {
         Text(micOn ? 'Your microphone is ON — everyone hears you' : 'Microphone OFF — tap to speak',
             style: GoogleFonts.poppins(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
         const SizedBox(height: 12),
+        _handsBanner(), // ✋ yellow bar when students raise hands
 
         // ---- mic control for everyone ----
         Padding(
@@ -668,4 +946,250 @@ class _AdminAssemblyHostScreenState extends State<AdminAssemblyHostScreen> {
           ],
         ),
       );
+
+  Widget _badgeIcon(IconData icon, int n, Color badge) => Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Icon(icon, color: Colors.white, size: 22),
+          if (n > 0)
+            Positioned(
+              right: -8,
+              top: -6,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                decoration: BoxDecoration(color: badge, borderRadius: BorderRadius.circular(8)),
+                child: Text(n > 99 ? '99+' : '$n',
+                    style: GoogleFonts.poppins(
+                        color: badge == red ? Colors.white : const Color(0xFF2A0F57), fontSize: 9, fontWeight: FontWeight.w800)),
+              ),
+            ),
+        ],
+      );
+}
+
+class _Hand {
+  final String id;
+  final String name;
+  final DateTime at;
+  const _Hand(this.id, this.name, this.at);
+}
+
+class _Msg {
+  final String fromId;
+  final String fromName;
+  final String text;
+  final DateTime at;
+  final bool mine;
+  const _Msg(this.fromId, this.fromName, this.text, this.at, this.mine);
+}
+
+/// 💬 Questions from students + Sir's messages (to everyone or to one student)
+class _HostChatSheet extends StatefulWidget {
+  final List<_Msg> Function() messages;
+  final Future<bool> Function(String text) sendToAll;
+  final Future<bool> Function(_Msg to, String text) replyTo;
+  const _HostChatSheet({required this.messages, required this.sendToAll, required this.replyTo});
+
+  @override
+  State<_HostChatSheet> createState() => _HostChatSheetState();
+}
+
+class _HostChatSheetState extends State<_HostChatSheet> {
+  final _text = TextEditingController();
+  final _scroll = ScrollController();
+  _Msg? _reply;
+  bool _sending = false;
+  Timer? _refresh;
+
+  @override
+  void initState() {
+    super.initState();
+    // new questions arrive while the sheet is open → redraw every second
+    _refresh = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _toBottom());
+  }
+
+  @override
+  void dispose() {
+    _refresh?.cancel();
+    _text.dispose();
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _toBottom() {
+    if (_scroll.hasClients) _scroll.jumpTo(_scroll.position.maxScrollExtent);
+  }
+
+  String _clock(DateTime t) {
+    final h = t.hour % 12 == 0 ? 12 : t.hour % 12;
+    return '$h:${t.minute.toString().padLeft(2, '0')} ${t.hour < 12 ? 'AM' : 'PM'}';
+  }
+
+  Future<void> _send() async {
+    final t = _text.text.trim();
+    if (t.isEmpty || _sending) return;
+    setState(() => _sending = true);
+    final ok = _reply == null ? await widget.sendToAll(t) : await widget.replyTo(_reply!, t);
+    if (!mounted) return;
+    setState(() {
+      _sending = false;
+      if (ok) {
+        _text.clear();
+        _reply = null;
+      }
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _toBottom());
+    if (!ok) {
+      Get.snackbar('Not sent', 'Check your internet and try again.',
+          backgroundColor: const Color(0xFFE45757), colorText: Colors.white);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const purple = Color(0xFF7B2FF7);
+    const ink = Color(0xFF173A52);
+    final list = widget.messages();
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        height: MediaQuery.of(context).size.height * .75,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            children: [
+              const SizedBox(height: 10),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(color: Colors.black12, borderRadius: BorderRadius.circular(4)),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 12, 18, 8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.chat_bubble_rounded, color: purple, size: 20),
+                    const SizedBox(width: 8),
+                    Text('Student questions',
+                        style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w800, color: ink)),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: list.isEmpty
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(28),
+                          child: Text(
+                            'Questions from students appear here.\nTap a question to reply only to that student.',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.poppins(color: Colors.black45, fontSize: 12.5),
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        controller: _scroll,
+                        padding: const EdgeInsets.all(12),
+                        itemCount: list.length,
+                        itemBuilder: (_, i) {
+                          final m = list[i];
+                          return Align(
+                            alignment: m.mine ? Alignment.centerRight : Alignment.centerLeft,
+                            child: GestureDetector(
+                              onTap: m.mine ? null : () => setState(() => _reply = m),
+                              child: Container(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                constraints: const BoxConstraints(maxWidth: 480),
+                                padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                                decoration: BoxDecoration(
+                                  color: m.mine ? purple : const Color(0xFFF3EEFD),
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('${m.fromName} • ${_clock(m.at)}',
+                                        style: GoogleFonts.poppins(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w700,
+                                            color: m.mine ? Colors.white70 : purple)),
+                                    const SizedBox(height: 2),
+                                    Text(m.text,
+                                        style: GoogleFonts.poppins(fontSize: 13, color: m.mine ? Colors.white : ink)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+              if (_reply != null)
+                Container(
+                  color: const Color(0xFFF3EEFD),
+                  padding: const EdgeInsets.fromLTRB(14, 4, 4, 4),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.reply_rounded, size: 16, color: purple),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text('Reply only to ${_reply!.fromName}',
+                            style: GoogleFonts.poppins(fontSize: 12, color: purple, fontWeight: FontWeight.w600)),
+                      ),
+                      IconButton(
+                        onPressed: () => setState(() => _reply = null),
+                        icon: const Icon(Icons.close_rounded, size: 18),
+                      ),
+                    ],
+                  ),
+                ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 8, 10),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _text,
+                        maxLength: 300,
+                        minLines: 1,
+                        maxLines: 3,
+                        textInputAction: TextInputAction.send,
+                        onSubmitted: (_) => _send(),
+                        decoration: InputDecoration(
+                          counterText: '',
+                          hintText: _reply == null ? 'Message to everyone…' : 'Your reply…',
+                          hintStyle: GoogleFonts.poppins(fontSize: 13),
+                          filled: true,
+                          fillColor: const Color(0xFFF5F3FA),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: BorderSide.none),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    IconButton.filled(
+                      style: IconButton.styleFrom(backgroundColor: purple),
+                      onPressed: _sending ? null : _send,
+                      icon: _sending
+                          ? const SizedBox(
+                              width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Icon(Icons.send_rounded, color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

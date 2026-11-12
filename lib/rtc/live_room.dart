@@ -20,6 +20,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:livekit_client/livekit_client.dart' as lk;
@@ -186,6 +187,17 @@ class CallStateHolder {
   }
 }
 
+/// ✋ A small message inside the class (raise hand, question, trainer reply).
+/// Sent with LiveKit data messages — no server call, arrives in ~0.1 s.
+class ClassSignal {
+  final String from; // user id of the sender
+  final String fromName;
+  final bool fromStaff;
+  final Map<String, dynamic> data;
+  const ClassSignal(this.from, this.fromName, this.fromStaff, this.data);
+  String get type => (data['t'] ?? '').toString();
+}
+
 // -------------------------------------------------------------------------
 // StreamVideo (the "client") — keeps who is logged in
 // -------------------------------------------------------------------------
@@ -223,6 +235,73 @@ class Call {
   final User _user;
   final CallStateHolder state;
 
+  /// 👀 admin / principal listens quietly (hidden, mic can never turn on)
+  bool observer = false;
+
+  /// 🎙 observer who is talking: joined with a "may speak" pass
+  bool observerSpeak = false;
+
+  /// 🔇 sound of the class on THIS phone only (nobody else is told)
+  bool soundOn = true;
+
+  /// Turns the class sound on / off only for me. The trainer and students
+  /// hear nothing different and never see who muted.
+  Future<void> setSoundOn(bool on) async {
+    soundOn = on;
+    final room = _room;
+    if (room == null) return;
+    for (final p in room.remoteParticipants.values) {
+      for (final pub in p.audioTrackPublications) {
+        await _applySound(pub);
+      }
+    }
+    _emitNow();
+  }
+
+  Future<void> _applySound(lk.RemoteTrackPublication pub) async {
+    try {
+      if (soundOn) {
+        await pub.enable();
+      } else {
+        await pub.disable();
+      }
+    } catch (_) {}
+  }
+
+  // ---------------------------------------------------------------------
+  // 🌐 WEB SOUND: Chrome only plays sound after the person taps the page.
+  // We start the class sound right after joining, on every new voice, and on
+  // the next tap anywhere in the app (if Chrome blocked it before).
+  // ---------------------------------------------------------------------
+  static bool _tapHooked = false;
+
+  static void _webUnlockOnTap() {
+    if (_tapHooked) return;
+    _tapHooked = true;
+    GestureBinding.instance.pointerRouter.addGlobalRoute((PointerEvent e) {
+      if (e is! PointerDownEvent) return;
+      for (final c in StreamVideo._active.toList()) {
+        final r = c._room;
+        if (r != null && !r.canPlaybackAudio) _webStartAudio(r);
+      }
+    });
+  }
+
+  static void _webStartAudio(lk.Room room) {
+    try {
+      room.startAudio().catchError((_) {});
+    } catch (_) {}
+  }
+
+  /// 🌐 true when Chrome is still blocking the class sound (show "Tap to hear")
+  bool get soundBlocked => kIsWeb && _room != null && !_room!.canPlaybackAudio;
+
+  Future<void> unlockSound() async {
+    final r = _room;
+    if (r != null) _webStartAudio(r);
+    _emitNow();
+  }
+
   lk.Room? _room;
   lk.EventsListener<lk.RoomEvent>? _listener;
   CallStatus _status = CallStatus.idle;
@@ -231,6 +310,59 @@ class Call {
   String? _metaText;
   Timer? _emitTimer;
   bool _left = false;
+
+  // ✋ raise hand + class messages
+  final StreamController<ClassSignal> _signals = StreamController<ClassSignal>.broadcast();
+  Stream<ClassSignal> get signals => _signals.stream;
+
+  static bool _isStaffMeta(String? meta) {
+    try {
+      final d = jsonDecode(meta ?? '');
+      return d is Map && d['role'] == 'admin';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Trainers / admins in the class right now (user ids)
+  List<String> get staffIds => (_room?.remoteParticipants.values ?? const <lk.RemoteParticipant>[])
+      .where((p) => _isStaffMeta(p.metadata))
+      .map((p) => p.identity)
+      .toList();
+
+  /// Send a small message. to = null → everyone, else only those user ids.
+  Future<bool> sendSignal(Map<String, dynamic> data, {List<String>? to}) async {
+    final me = _room?.localParticipant;
+    if (me == null) return false;
+    if (to != null && to.isEmpty) return false;
+    try {
+      await me.publishData(
+        utf8.encode(jsonEncode(data)),
+        reliable: true,
+        destinationIdentities: to,
+        topic: 'class',
+      );
+      return true;
+    } catch (e) {
+      debugPrint('Class message error: $e');
+      return false;
+    }
+  }
+
+  void _onData(lk.DataReceivedEvent e) {
+    if (e.topic != 'class' || _signals.isClosed) return;
+    try {
+      final d = jsonDecode(utf8.decode(e.data));
+      if (d is! Map) return;
+      final p = e.participant;
+      _signals.add(ClassSignal(
+        p?.identity ?? '',
+        (p == null || p.name.isEmpty) ? (p?.identity ?? '') : p.name,
+        _isStaffMeta(p?.metadata),
+        Map<String, dynamic>.from(d),
+      ));
+    } catch (_) {}
+  }
 
   String get callCid => 'default:$id';
   String get userId => _user.id;
@@ -245,7 +377,10 @@ class Call {
       _status = CallStatus.connecting;
       _emitNow();
 
-      final data = await _post('/rtc/room-token', {'room': id});
+      final data = await _post(
+        observer ? '/rtc/observe-token' : '/rtc/room-token',
+        {'room': id, if (observer) 'speak': observerSpeak},
+      );
       final url = (data['url'] ?? '').toString();
       final token = (data['token'] ?? '').toString();
       if (url.isEmpty || token.isEmpty) throw Exception('Class access missing');
@@ -255,13 +390,18 @@ class Call {
           adaptiveStream: true,
           dynacast: true,
           // 🎧 speech: silence is not sent (dtx) + protection against lost packets (red)
-          defaultAudioPublishOptions: lk.AudioPublishOptions(dtx: true, red: true),
+          //    🌐 web (Chrome): plain Opus — RED/DTX can make the voice silent in the browser
+          defaultAudioPublishOptions: lk.AudioPublishOptions(dtx: !kIsWeb, red: !kIsWeb),
         ),
       );
       _room = room;
       final listener = room.createListener();
       _listener = listener;
       listener.listen((event) {
+        if (event is lk.DataReceivedEvent) {
+          _onData(event);
+          return;
+        }
         if (event is lk.RoomDisconnectedEvent) {
           if (event.reason == lk.DisconnectReason.roomDeleted) {
             _endedAt = DateTime.now(); // trainer ended the class for everyone
@@ -270,6 +410,12 @@ class Call {
           _emitNow();
           return;
         }
+        // someone new turned the mic on while my sound is off → keep it off
+        if (event is lk.TrackSubscribedEvent && !soundOn && event.track is lk.RemoteAudioTrack) {
+          _applySound(event.publication);
+        }
+        // 🌐 web: Chrome blocks sound until a tap → try to start it on every new voice
+        if (kIsWeb && event is lk.TrackSubscribedEvent) _webStartAudio(room);
         if (event is lk.RoomReconnectingEvent) _status = CallStatus.reconnecting;
         if (event is lk.RoomReconnectedEvent) _status = CallStatus.connected;
         _scheduleEmit();
@@ -277,13 +423,17 @@ class Call {
       room.addListener(_scheduleEmit);
 
       await room.connect(url, token, connectOptions: const lk.ConnectOptions(autoSubscribe: true));
+      if (kIsWeb) {
+        _webUnlockOnTap();
+        _webStartAudio(room);
+      }
       _status = CallStatus.connected;
       StreamVideo._active.add(this);
       try {
         await room.setSpeakerOn(true); // 🔊 class on the loudspeaker (headphones / Bluetooth still win)
       } catch (_) {}
 
-      final micOn = connectOptions?.microphone.isOn ?? false;
+      final micOn = !observer && (connectOptions?.microphone.isOn ?? false);
       if (micOn) {
         try {
           await room.localParticipant?.setMicrophoneEnabled(true);
@@ -329,6 +479,111 @@ class Call {
     try {
       await room?.dispose();
     } catch (_) {}
+  }
+
+  /// 🎙 Admin listening quietly → talk to the class (or stop and listen again).
+  /// LiveKit cannot change a hidden person into a speaker reliably, so we
+  /// quickly re-join with a new pass (about 1 second). The trainer & student
+  /// apps never show "observer_…" people, so nobody sees the admin.
+  bool speaking = false;
+  bool get myMicOn => _room?.localParticipant?.isMicrophoneEnabled() ?? false;
+
+  /// 🔍 mic health for the screen: allowed by server / mic track sent / not muted
+  ({bool allowed, bool sending, bool muted}) get micHealth {
+    final me = _room?.localParticipant;
+    if (me == null) return (allowed: false, sending: false, muted: true);
+    final pubs = me.audioTrackPublications;
+    return (
+      allowed: me.permissions.canPublish,
+      sending: pubs.isNotEmpty,
+      muted: pubs.isEmpty || pubs.every((p) => p.muted),
+    );
+  }
+
+  /// 🎤 Is the server hearing real sound from me right now? (measured by LiveKit)
+  bool get iAmHeard => _room?.localParticipant?.isSpeaking ?? false;
+
+  /// 🎤 Microphones on this computer / phone (laptop mic, headset, …)
+  Future<List<({String id, String label})>> micDevices() async {
+    try {
+      final list = await lk.Hardware.instance.audioInputs();
+      return list
+          .where((d) => d.deviceId.isNotEmpty)
+          .map((d) => (id: d.deviceId, label: d.label.isEmpty ? 'Microphone' : d.label))
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  String? usedMicId;
+
+  /// 🎤 Use another microphone (wrong mic picked = silence for everyone)
+  Future<void> useMic(String deviceId) async {
+    final room = _room;
+    if (room == null) return;
+    try {
+      final list = await lk.Hardware.instance.audioInputs();
+      final d = list.firstWhere((x) => x.deviceId == deviceId);
+      await room.setAudioInputDevice(d);
+      usedMicId = deviceId;
+      _emitNow();
+    } catch (e) {
+      debugPrint('Mic change error: $e');
+    }
+  }
+
+  /// 🔍 ask the server who is in the room and who is sending sound
+  Future<List<Map<String, dynamic>>> roomCheck() async {
+    final res = await http
+        .get(Uri.parse('${ApiEndpoints.baseUrl}/rtc/room-check?room=$id'), headers: _headers())
+        .timeout(const Duration(seconds: 15));
+    final d = jsonDecode(res.body);
+    if (res.statusCode != 200) throw Exception((d is Map ? d['error'] : null) ?? 'Error ${res.statusCode}');
+    return ((d['people'] ?? []) as List).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+  }
+
+  Future<String?> setObserverSpeaking(bool speak) async {
+    if (!observer) return 'Not watching a class';
+    final keepSound = soundOn;
+    try {
+      try {
+        await _room?.localParticipant?.setMicrophoneEnabled(false);
+      } catch (_) {}
+      observerSpeak = speak;
+      await _closeRoom(); // quiet re-join (the screen keeps showing the class)
+      final r = await join(
+        connectOptions: CallConnectOptions(camera: TrackOption.disabled(), microphone: TrackOption.disabled()),
+      );
+      if (r.isFailure) {
+        observerSpeak = false;
+        speaking = false;
+        return 'Could not reconnect to the class. It may have ended.';
+      }
+      if (!keepSound) await setSoundOn(false);
+      if (speak) {
+        final me = _room?.localParticipant;
+        if (me == null) return 'Not connected to the class';
+        await me.setMicrophoneEnabled(true); // asks for mic permission the first time
+        if (!me.isMicrophoneEnabled()) {
+          return 'Microphone is blocked. Allow the mic for this app (phone Settings / browser) and try again.';
+        }
+      }
+      speaking = speak;
+      _emitNow();
+      return null;
+    } catch (e) {
+      debugPrint('Observer speak error: $e');
+      return 'Could not turn the mic on. Check internet and mic permission.';
+    }
+  }
+
+  /// While speaking: just mute / unmute my mic (stay visible)
+  Future<void> setMyMic(bool on) async {
+    try {
+      await _room?.localParticipant?.setMicrophoneEnabled(on);
+    } catch (_) {}
+    _emitNow();
   }
 
   Future<Result<void>> setMicrophoneEnabled({required bool enabled}) async {

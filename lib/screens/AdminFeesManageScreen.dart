@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:get_storage/get_storage.dart';
 import 'package:lets_speake_manager/Api/ApiendPoints.dart';
 import 'package:lets_speake_manager/Api/api_headers.dart';
+import 'package:lets_speake_manager/Api/admin_live.dart';
 import 'package:lets_speake_manager/Navigation/AdminShellNavigation.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -50,7 +51,7 @@ class _AdminFeesManageScreenState extends State<AdminFeesManageScreen>
   List<dynamic> monthlyHistory = []; // 🚀 Monthly collection breakdown records
 
   String selectedChannel = "all";
-  String selectedLanguage = "English";
+  String selectedLanguage = "all"; // all | English | Hindi
   String selectedStage = "all";
   String selectedSection = "all";
   String selectedFeeFilter = "all";
@@ -71,10 +72,15 @@ class _AdminFeesManageScreenState extends State<AdminFeesManageScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     fetchData();
+    // ⚡ fee marked paid / verified anywhere → this list updates by itself
+    _stopLive = AdminLive.on(['student_update', 'fee_update', 'payment_update'], () => fetchData(silent: true));
   }
+
+  void Function()? _stopLive;
 
   @override
   void dispose() {
+    _stopLive?.call();
     WidgetsBinding.instance.removeObserver(this);
     searchController.dispose();
     super.dispose();
@@ -152,46 +158,74 @@ class _AdminFeesManageScreenState extends State<AdminFeesManageScreen>
     await launchUrl(whatsappUri, mode: LaunchMode.externalApplication);
   }
 
-  List<dynamic> get filteredStudents {
-    List<dynamic> list = List.from(allStudents);
-
-    if (selectedChannel != "all") {
-      list = list.where((s) => (s['mode'] ?? 'online').toString().toLowerCase() == selectedChannel).toList();
-    }
-
-    if (selectedStage != "all") {
-      list = list.where((s) {
-        if (selectedLanguage.toLowerCase() == "english") {
-          final english = s['englishAccess'];
-          return english != null && english[selectedStage] == true;
-        } else {
-          final hindi = s['hindiAccess'];
-          return hindi != null && hindi[selectedStage] == true;
-        }
-      }).toList();
-    }
-
-    if (selectedChannel == "online" && selectedLanguage == "English" && selectedSection != "all") {
-      list = list.where((s) => (s['onlineSection'] ?? 'A').toString().toUpperCase() == selectedSection).toList();
-    }
-
-    if (selectedFeeFilter == "paid") {
-      list = list.where((s) => (s['feeStatus'] ?? 'unpaid') == 'paid').toList();
-    } else if (selectedFeeFilter == "unpaid") {
-      list = list.where((s) => (s['feeStatus'] ?? 'unpaid') != 'paid').toList();
-    }
-
-    final query = searchController.text.trim().toLowerCase();
-    if (query.isNotEmpty) {
-      list = list.where((s) {
-        final name = (s['name'] ?? '').toString().toLowerCase();
-        final phone = (s['phone'] ?? '').toString().toLowerCase();
-        return name.contains(query) || phone.contains(query);
-      }).toList();
-    }
-
-    return list;
+  // ---------------------------------------------------------------------
+  // 🧰 FILTER LOGIC (all on the list already loaded → instant)
+  // ---------------------------------------------------------------------
+  bool _hasLang(dynamic s, String lang) {
+    final acc = lang == 'English' ? s['englishAccess'] : s['hindiAccess'];
+    return acc is Map && acc.values.any((v) => v == true);
   }
+
+  bool _hasStage(dynamic s, String lang, String stage) {
+    bool inLang(String l) {
+      final acc = l == 'English' ? s['englishAccess'] : s['hindiAccess'];
+      return acc is Map && acc[stage] == true;
+    }
+
+    return lang == 'all' ? (inLang('English') || inLang('Hindi')) : inLang(lang);
+  }
+
+  String _modeOf(dynamic s) => (s['mode'] ?? 'online').toString().toLowerCase();
+  String _sectionOf(dynamic s) => (s['onlineSection'] ?? 'A').toString().toUpperCase();
+  bool _isPaid(dynamic s) => (s['feeStatus'] ?? 'unpaid').toString().toLowerCase() == 'paid';
+
+  /// [skip] = ignore one group (used to show "how many if I pick this")
+  bool _passes(dynamic s,
+      {required String channel,
+      required String language,
+      required String stage,
+      required String section,
+      required String fee,
+      String skip = ''}) {
+    if (skip != 'channel' && channel != 'all' && _modeOf(s) != channel) return false;
+    if (skip != 'language' && language != 'all' && !_hasLang(s, language)) return false;
+    if (skip != 'stage' && stage != 'all' && !_hasStage(s, language, stage)) return false;
+    if (skip != 'section' && section != 'all' && !(_modeOf(s) == 'online' && _sectionOf(s) == section)) return false;
+    if (skip != 'fee' && fee == 'paid' && !_isPaid(s)) return false;
+    if (skip != 'fee' && fee == 'unpaid' && _isPaid(s)) return false;
+    return true;
+  }
+
+  List<dynamic> get filteredStudents {
+    final query = searchController.text.trim().toLowerCase();
+    return allStudents.where((s) {
+      if (!_passes(s,
+          channel: selectedChannel,
+          language: selectedLanguage,
+          stage: selectedStage,
+          section: selectedSection,
+          fee: selectedFeeFilter)) return false;
+      if (query.isEmpty) return true;
+      final name = (s['name'] ?? '').toString().toLowerCase();
+      final phone = (s['phone'] ?? '').toString().toLowerCase();
+      return name.contains(query) || phone.contains(query);
+    }).toList();
+  }
+
+  int get _activeFilters =>
+      (selectedChannel != 'all' ? 1 : 0) +
+      (selectedLanguage != 'all' ? 1 : 0) +
+      (selectedStage != 'all' ? 1 : 0) +
+      (selectedSection != 'all' ? 1 : 0) +
+      (selectedFeeFilter != 'all' ? 1 : 0);
+
+  void _clearAllFilters() => setState(() {
+        selectedChannel = 'all';
+        selectedLanguage = 'all';
+        selectedStage = 'all';
+        selectedSection = 'all';
+        selectedFeeFilter = 'all';
+      });
 
   @override
   Widget build(BuildContext context) {
@@ -296,7 +330,7 @@ class _AdminFeesManageScreenState extends State<AdminFeesManageScreen>
                                       crossAxisCount: 2,
                                       crossAxisSpacing: 10,
                                       mainAxisSpacing: 10,
-                                      mainAxisExtent: 116,
+                                      mainAxisExtent: 92,
                                     ),
                                     itemBuilder: (context, index) {
                                       return _buildStudentCard(filteredStudents[index], compact: true);
@@ -427,108 +461,439 @@ class _AdminFeesManageScreenState extends State<AdminFeesManageScreen>
   }
 
   Widget _buildControls({required bool isWeb}) {
+    final shown = filteredStudents.length;
     return Padding(
       padding: EdgeInsets.fromLTRB(isWeb ? 24 : 14, 0, isWeb ? 24 : 14, 10),
-      child: Container(
-        padding: const EdgeInsets.all(11),
-        decoration: BoxDecoration(
-          color: cardColor,
-          borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: borderColor),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSearchBar(),
-            const SizedBox(height: 10),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final compact = constraints.maxWidth < 760;
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(child: _buildSearchBar()),
+              const SizedBox(width: 8),
+              _filterButton(),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(child: _appliedPills()),
+              const SizedBox(width: 8),
+              Text(
+                _activeFilters > 0 || searchController.text.isNotEmpty
+                    ? '$shown of ${allStudents.length} students'
+                    : '${allStudents.length} students',
+                style: GoogleFonts.poppins(color: secondaryText, fontSize: 11, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 
-                final channel = _horizontalFilter(
-                  children: [
-                    _buildChoicePill('All', selectedChannel == 'all', () => setState(() => selectedChannel = 'all'), navy),
-                    _buildChoicePill('Online', selectedChannel == 'online', () => setState(() => selectedChannel = 'online'), blue),
-                    _buildChoicePill('Offline', selectedChannel == 'offline', () => setState(() => selectedChannel = 'offline'), const Color(0xFF9A7500)),
-                  ],
-                );
-
-                final language = _horizontalFilter(
-                  children: [
-                    _buildChoicePill('English', selectedLanguage == 'English', () => setState(() => selectedLanguage = 'English'), navy),
-                    _buildChoicePill('Hindi', selectedLanguage == 'Hindi', () => setState(() => selectedLanguage = 'Hindi'), blue),
-                  ],
-                );
-
-                final stages = _horizontalFilter(
-                  children: stageKeys.map((st) {
-                    final selected = selectedStage == st;
-                    final label = st == 'all' ? 'All stages' : 'Stage ${st.replaceAll('stage', '')}';
-                    return _buildStageFilterChip(label, selected, () => setState(() => selectedStage = st));
-                  }).toList(),
-                );
-
-                final sections = (selectedChannel == 'online' && selectedLanguage == 'English')
-                    ? _horizontalFilter(
-                        children: ['all', 'A', 'B', 'C', 'D', 'E'].map((sec) {
-                          return _buildStageFilterChip(sec == 'all' ? 'All sections' : 'Sec $sec', selectedSection == sec, () => setState(() => selectedSection = sec));
-                        }).toList(),
-                      )
-                    : const SizedBox.shrink();
-
-                if (compact) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _filterLabel('Channel'),
-                      const SizedBox(height: 5),
-                      channel,
-                      const SizedBox(height: 9),
-                      _filterLabel('Language'),
-                      const SizedBox(height: 5),
-                      language,
-                      const SizedBox(height: 9),
-                      _filterLabel('Stage'),
-                      const SizedBox(height: 5),
-                      stages,
-                      if (selectedChannel == 'online' && selectedLanguage == 'English') ...[
-                        const SizedBox(height: 9),
-                        _filterLabel('Section'),
-                        const SizedBox(height: 5),
-                        sections,
-                      ],
-                    ],
-                  );
-                }
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [_filterLabel('Channel'), const SizedBox(height: 5), channel])),
-                        const SizedBox(width: 12),
-                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [_filterLabel('Language'), const SizedBox(height: 5), language])),
-                      ],
-                    ),
-                    const SizedBox(height: 9),
-                    _filterLabel('Stage'),
-                    const SizedBox(height: 5),
-                    stages,
-                    if (selectedChannel == 'online' && selectedLanguage == 'English') ...[
-                      const SizedBox(height: 9),
-                      _filterLabel('Section'),
-                      const SizedBox(height: 5),
-                      sections,
-                    ],
-                  ],
-                );
-              },
-            ),
-          ],
+  Widget _filterButton() {
+    final n = _activeFilters;
+    final on = n > 0;
+    return Material(
+      color: on ? navy : cardColor,
+      borderRadius: BorderRadius.circular(11),
+      child: InkWell(
+        onTap: _openFilterPanel,
+        borderRadius: BorderRadius.circular(11),
+        child: Container(
+          height: 46,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(11),
+            border: Border.all(color: on ? navy : borderColor),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.tune_rounded, size: 18, color: on ? Colors.white : navy),
+              const SizedBox(width: 6),
+              Text('Filter',
+                  style: GoogleFonts.poppins(
+                      color: on ? Colors.white : textColor, fontSize: 12, fontWeight: FontWeight.w700)),
+              if (on) ...[
+                const SizedBox(width: 6),
+                Container(
+                  width: 20,
+                  height: 20,
+                  alignment: Alignment.center,
+                  decoration: const BoxDecoration(color: Color(0xFFF7DF55), shape: BoxShape.circle),
+                  child: Text('$n',
+                      style: GoogleFonts.poppins(color: textColor, fontSize: 10, fontWeight: FontWeight.w800)),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  Widget _appliedPills() {
+    final pills = <Widget>[];
+    void add(String label, Color c, VoidCallback onRemove) => pills.add(Padding(
+          padding: const EdgeInsets.only(right: 6),
+          child: Container(
+            padding: const EdgeInsets.only(left: 11, right: 4),
+            decoration: BoxDecoration(
+              color: c.withOpacity(.10),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: c.withOpacity(.35)),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Text(label, style: GoogleFonts.poppins(color: c, fontSize: 11, fontWeight: FontWeight.w700)),
+              InkWell(
+                onTap: () => setState(onRemove),
+                borderRadius: BorderRadius.circular(20),
+                child: Padding(padding: const EdgeInsets.all(4), child: Icon(Icons.close_rounded, size: 15, color: c)),
+              ),
+            ]),
+          ),
+        ));
+    if (selectedChannel != 'all') {
+      add(selectedChannel == 'online' ? 'Online' : 'Offline',
+          selectedChannel == 'online' ? blue : const Color(0xFF9A7500), () => selectedChannel = 'all');
+    }
+    if (selectedLanguage != 'all') add(selectedLanguage, navy, () => selectedLanguage = 'all');
+    if (selectedStage != 'all') {
+      add('Stage ${selectedStage.replaceAll('stage', '')}', successGreen, () => selectedStage = 'all');
+    }
+    if (selectedSection != 'all') add('Section $selectedSection', blue, () => selectedSection = 'all');
+    if (selectedFeeFilter != 'all') {
+      add(selectedFeeFilter == 'paid' ? 'Paid' : 'Unpaid', selectedFeeFilter == 'paid' ? successGreen : alertRed,
+          () => selectedFeeFilter = 'all');
+    }
+    if (pills.isEmpty) return const SizedBox(height: 32);
+    return SizedBox(
+      height: 32,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        children: [
+          ...pills,
+          TextButton(
+            onPressed: _clearAllFilters,
+            style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 10), minimumSize: const Size(0, 32)),
+            child: Text('Clear all', style: GoogleFonts.poppins(color: alertRed, fontSize: 11, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------
+  // 🧰 FILTER PANEL — groups left, options right, live counts
+  //   Web/tablet: side panel from the right • Phone: bottom sheet
+  // ---------------------------------------------------------------------
+  void _openFilterPanel() {
+    String dChannel = selectedChannel;
+    String dLanguage = selectedLanguage;
+    String dStage = selectedStage;
+    String dSection = selectedSection;
+    String dFee = selectedFeeFilter;
+    String active = 'channel';
+
+    final groups = <Map<String, dynamic>>[
+      {'key': 'channel', 'title': 'Online / Offline', 'icon': Icons.wifi_rounded},
+      {'key': 'language', 'title': 'Language', 'icon': Icons.translate_rounded},
+      {'key': 'stage', 'title': 'Stage', 'icon': Icons.layers_rounded},
+      {'key': 'section', 'title': 'Section', 'icon': Icons.view_module_rounded},
+      {'key': 'fee', 'title': 'Fee status', 'icon': Icons.payments_rounded},
+    ];
+
+    Widget panel(BuildContext ctx, StateSetter setPanel, bool wide) {
+      int countWith(String skip, bool Function(dynamic s) test) => allStudents
+          .where((s) =>
+              _passes(s,
+                  channel: dChannel, language: dLanguage, stage: dStage, section: dSection, fee: dFee, skip: skip) &&
+              test(s))
+          .length;
+      final total = allStudents
+          .where((s) => _passes(s, channel: dChannel, language: dLanguage, stage: dStage, section: dSection, fee: dFee))
+          .length;
+
+      bool isSet(String key) => {
+            'channel': dChannel,
+            'language': dLanguage,
+            'stage': dStage,
+            'section': dSection,
+            'fee': dFee,
+          }[key] != 'all';
+
+      Widget option(String label, bool selected, int count, VoidCallback onTap, {Color color = navy}) => InkWell(
+            onTap: () {
+              HapticFeedback.selectionClick();
+              setPanel(onTap);
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 140),
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      color: selected ? color : Colors.transparent,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: selected ? color : const Color(0xFFB7C9D6), width: 1.6),
+                    ),
+                    child: selected ? const Icon(Icons.check_rounded, size: 15, color: Colors.white) : null,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(label,
+                        style: GoogleFonts.poppins(
+                            color: textColor, fontSize: 12.5, fontWeight: selected ? FontWeight.w700 : FontWeight.w500)),
+                  ),
+                  Text('$count',
+                      style: GoogleFonts.poppins(color: secondaryText, fontSize: 11.5, fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+          );
+
+      List<Widget> options() {
+        switch (active) {
+          case 'channel':
+            return [
+              option('Online + Offline', dChannel == 'all', countWith('channel', (_) => true), () => dChannel = 'all'),
+              option('Online', dChannel == 'online', countWith('channel', (s) => _modeOf(s) == 'online'),
+                  () => dChannel = 'online', color: blue),
+              option('Offline', dChannel == 'offline', countWith('channel', (s) => _modeOf(s) == 'offline'),
+                  () => dChannel = 'offline', color: const Color(0xFF9A7500)),
+            ];
+          case 'language':
+            return [
+              option('All languages', dLanguage == 'all', countWith('language', (_) => true), () => dLanguage = 'all'),
+              option('English', dLanguage == 'English', countWith('language', (s) => _hasLang(s, 'English')),
+                  () => dLanguage = 'English'),
+              option('Hindi', dLanguage == 'Hindi', countWith('language', (s) => _hasLang(s, 'Hindi')),
+                  () => dLanguage = 'Hindi', color: teal),
+            ];
+          case 'stage':
+            return [
+              for (final st in stageKeys)
+                option(
+                  st == 'all' ? 'All stages' : 'Stage ${st.replaceAll('stage', '')}',
+                  dStage == st,
+                  countWith('stage', (s) => st == 'all' || _hasStage(s, dLanguage, st)),
+                  () => dStage = st,
+                  color: successGreen,
+                ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 6, 14, 0),
+                child: Text(
+                    dLanguage == 'all' ? 'Stage of English or Hindi' : 'Stage of the $dLanguage course',
+                    style: GoogleFonts.poppins(color: secondaryText, fontSize: 10)),
+              ),
+            ];
+          case 'section':
+            return [
+              for (final sec in ['all', 'A', 'B', 'C', 'D', 'E'])
+                option(
+                  sec == 'all' ? 'All sections' : 'Section $sec',
+                  dSection == sec,
+                  countWith('section', (s) => sec == 'all' || (_modeOf(s) == 'online' && _sectionOf(s) == sec)),
+                  () => dSection = sec,
+                  color: blue,
+                ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 6, 14, 0),
+                child: Text('Sections are for online students',
+                    style: GoogleFonts.poppins(color: secondaryText, fontSize: 10)),
+              ),
+            ];
+          default:
+            return [
+              option('Paid + Unpaid', dFee == 'all', countWith('fee', (_) => true), () => dFee = 'all'),
+              option('Paid', dFee == 'paid', countWith('fee', _isPaid), () => dFee = 'paid', color: successGreen),
+              option('Unpaid', dFee == 'unpaid', countWith('fee', (s) => !_isPaid(s)), () => dFee = 'unpaid',
+                  color: alertRed),
+            ];
+        }
+      }
+
+      final draftCount = [dChannel, dLanguage, dStage, dSection, dFee].where((e) => e != 'all').length;
+
+      return Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 14, 8, 10),
+            child: Row(
+              children: [
+                const Icon(Icons.tune_rounded, color: navy, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Filters',
+                          style: GoogleFonts.poppins(color: textColor, fontSize: 17, fontWeight: FontWeight.w700)),
+                      Text('Fee management', style: GoogleFonts.poppins(color: secondaryText, fontSize: 10.5)),
+                    ],
+                  ),
+                ),
+                TextButton(
+                  onPressed: draftCount == 0
+                      ? null
+                      : () => setPanel(() {
+                            dChannel = 'all';
+                            dLanguage = 'all';
+                            dStage = 'all';
+                            dSection = 'all';
+                            dFee = 'all';
+                          }),
+                  child: Text('Clear all',
+                      style: GoogleFonts.poppins(
+                          color: draftCount == 0 ? secondaryText : alertRed, fontSize: 12, fontWeight: FontWeight.w700)),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  icon: const Icon(Icons.close_rounded, color: secondaryText),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: borderColor),
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  width: wide ? 160 : 132,
+                  color: softSurface,
+                  child: ListView(
+                    children: [
+                      for (final g in groups)
+                        InkWell(
+                          onTap: () => setPanel(() => active = g['key'] as String),
+                          child: Container(
+                            padding: const EdgeInsets.fromLTRB(12, 15, 10, 15),
+                            decoration: BoxDecoration(
+                              color: active == g['key'] ? cardColor : Colors.transparent,
+                              border: Border(
+                                left: BorderSide(color: active == g['key'] ? navy : Colors.transparent, width: 4),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(g['icon'] as IconData, size: 16, color: active == g['key'] ? navy : secondaryText),
+                                const SizedBox(width: 7),
+                                Expanded(
+                                  child: Text(g['title'] as String,
+                                      style: GoogleFonts.poppins(
+                                        color: active == g['key'] ? textColor : secondaryText,
+                                        fontSize: 12,
+                                        fontWeight: active == g['key'] ? FontWeight.w700 : FontWeight.w600,
+                                      )),
+                                ),
+                                if (isSet(g['key'] as String))
+                                  Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: const BoxDecoration(color: navy, shape: BoxShape.circle),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                Expanded(child: ListView(padding: const EdgeInsets.symmetric(vertical: 6), children: options())),
+              ],
+            ),
+          ),
+          Container(
+            padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + MediaQuery.of(ctx).padding.bottom),
+            decoration: const BoxDecoration(border: Border(top: BorderSide(color: borderColor))),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('$total', style: GoogleFonts.poppins(color: textColor, fontSize: 18, fontWeight: FontWeight.w800)),
+                      Text('students found', style: GoogleFonts.poppins(color: secondaryText, fontSize: 10.5)),
+                    ],
+                  ),
+                ),
+                SizedBox(
+                  height: 46,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        selectedChannel = dChannel;
+                        selectedLanguage = dLanguage;
+                        selectedStage = dStage;
+                        selectedSection = dSection;
+                        selectedFeeFilter = dFee;
+                      });
+                      Navigator.of(ctx).pop();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: navy,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 26),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: Text('Show $total students',
+                        style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    final wide = MediaQuery.of(context).size.width >= 700;
+    if (wide) {
+      showGeneralDialog(
+        context: context,
+        barrierDismissible: true,
+        barrierLabel: 'Filters',
+        barrierColor: Colors.black.withOpacity(.35),
+        transitionDuration: const Duration(milliseconds: 220),
+        pageBuilder: (ctx, _, __) => Align(
+          alignment: Alignment.centerRight,
+          child: Material(
+            color: cardColor,
+            elevation: 12,
+            child: SizedBox(
+              width: 470,
+              height: double.infinity,
+              child: SafeArea(child: StatefulBuilder(builder: (c, sp) => panel(c, sp, true))),
+            ),
+          ),
+        ),
+        transitionBuilder: (ctx, anim, _, child) => SlideTransition(
+          position: Tween(begin: const Offset(1, 0), end: Offset.zero)
+              .animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
+          child: child,
+        ),
+      );
+    } else {
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: cardColor,
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+        builder: (ctx) => SizedBox(
+          height: MediaQuery.of(ctx).size.height * .8,
+          child: StatefulBuilder(builder: (c, sp) => panel(c, sp, false)),
+        ),
+      );
+    }
   }
 
   Widget _buildSearchBar() {
@@ -560,17 +925,7 @@ class _AdminFeesManageScreenState extends State<AdminFeesManageScreen>
     );
   }
 
-  Widget _filterLabel(String text) {
-    return Text(text, style: GoogleFonts.poppins(color: secondaryText, fontSize: 8.5, fontWeight: FontWeight.w700));
-  }
 
-  Widget _horizontalFilter({required List<Widget> children}) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      physics: const BouncingScrollPhysics(),
-      child: Row(children: children),
-    );
-  }
 
   Widget _buildStudentCard(dynamic student, {required bool compact}) {
     final String name = (student['name'] ?? 'Student').toString();
@@ -705,57 +1060,21 @@ class _AdminFeesManageScreenState extends State<AdminFeesManageScreen>
               Text('No students found', style: GoogleFonts.poppins(color: textColor, fontSize: 14, fontWeight: FontWeight.w700)),
               const SizedBox(height: 5),
               Text('Try changing the filters or search term.', textAlign: TextAlign.center, style: GoogleFonts.poppins(color: secondaryText, fontSize: 10.5)),
+              if (_activeFilters > 0 || searchController.text.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: TextButton(
+                    onPressed: () {
+                      searchController.clear();
+                      _clearAllFilters();
+                    },
+                    child: Text('Clear filters', style: GoogleFonts.poppins(color: navy, fontSize: 11, fontWeight: FontWeight.w700)),
+                  ),
+                ),
             ],
           ),
         ),
       ),
     );
   }
-
-  Widget _buildChoicePill(String title, bool isSelected, VoidCallback onTap, Color activeColor) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 6),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(9),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-            decoration: BoxDecoration(
-              color: isSelected ? activeColor : softSurface,
-              borderRadius: BorderRadius.circular(9),
-              border: Border.all(color: isSelected ? activeColor : borderColor),
-            ),
-            child: Text(title, style: GoogleFonts.poppins(color: isSelected ? Colors.white : textColor, fontSize: 9.5, fontWeight: FontWeight.w700)),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStageFilterChip(String label, bool isSelected, VoidCallback onTap) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 6),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(9),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              color: isSelected ? navy : softSurface,
-              borderRadius: BorderRadius.circular(9),
-              border: Border.all(color: isSelected ? navy : borderColor),
-            ),
-            child: Text(label, style: GoogleFonts.poppins(color: isSelected ? Colors.white : textColor, fontSize: 9.2, fontWeight: FontWeight.w700)),
-          ),
-        ),
-      ),
-    );
-  }
 }
-
