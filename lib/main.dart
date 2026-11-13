@@ -22,25 +22,61 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: "Let's Speak with Surendra • Admin",
       // 3. Global Theme Setup
+      // ☀️ LIGHT theme — every admin screen is a light design.
+      // (The old dark purple theme made all dialogs, bottom sheets,
+      //  date pickers and popup menus dark grey.)
       theme: ThemeData(
         useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xff0D0D0D), // Dark Background
-        // Default App Bar Theme
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xff1E1E1E),
-          iconTheme: IconThemeData(color: Colors.white),
-          titleTextStyle: TextStyle(
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
+        brightness: Brightness.light,
+        scaffoldBackgroundColor: const Color(0xFFF5FAFD),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF0A4A75), // Let's Speak navy
+          brightness: Brightness.light,
+        ).copyWith(surface: Colors.white),
+        textTheme: GoogleFonts.poppinsTextTheme(),
+        appBarTheme: AppBarTheme(
+          backgroundColor: Colors.white,
+          foregroundColor: const Color(0xFF173A52),
+          surfaceTintColor: Colors.white,
+          elevation: 0,
+          iconTheme: const IconThemeData(color: Color(0xFF173A52)),
+          titleTextStyle: GoogleFonts.poppins(
+            color: const Color(0xFF173A52),
+            fontSize: 17,
+            fontWeight: FontWeight.w800,
           ),
         ),
-
-        // Default Text Theme (Poppins)
-        textTheme: GoogleFonts.poppinsTextTheme(),
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xff7F56D9), // Your accent purple
-          brightness: Brightness.dark,
+        dialogTheme: DialogThemeData(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          titleTextStyle: GoogleFonts.poppins(
+            color: const Color(0xFF173A52),
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+          ),
+          contentTextStyle: GoogleFonts.poppins(
+            color: const Color(0xFF6B8496),
+            fontSize: 13,
+            height: 1.45,
+          ),
+        ),
+        bottomSheetTheme: const BottomSheetThemeData(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.white,
+        ),
+        popupMenuTheme: const PopupMenuThemeData(
+          color: Colors.white,
+          surfaceTintColor: Colors.white,
+        ),
+        datePickerTheme: const DatePickerThemeData(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.white,
+        ),
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(foregroundColor: const Color(0xFF0A4A75)),
         ),
       ),
 
