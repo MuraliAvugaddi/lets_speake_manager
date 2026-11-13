@@ -34,7 +34,20 @@ String _stageLabel(String s) => s.replaceAll('stage', 'Stage ');
 String _date(String? iso) {
   final d = DateTime.tryParse(iso ?? '')?.toLocal();
   if (d == null) return '';
-  const m = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const m = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
   final h = d.hour % 12 == 0 ? 12 : d.hour % 12;
   return '${d.day} ${m[d.month - 1]}, $h:${d.minute.toString().padLeft(2, '0')} ${d.hour < 12 ? 'AM' : 'PM'}';
 }
@@ -54,7 +67,8 @@ class AdminTestDraftsScreen extends StatefulWidget {
   State<AdminTestDraftsScreen> createState() => _AdminTestDraftsScreenState();
 }
 
-class _AdminTestDraftsScreenState extends State<AdminTestDraftsScreen> with WidgetsBindingObserver {
+class _AdminTestDraftsScreenState extends State<AdminTestDraftsScreen>
+    with WidgetsBindingObserver {
   String _status = 'pending';
   bool _loading = true;
   List<Map<String, dynamic>> _drafts = [];
@@ -69,7 +83,10 @@ class _AdminTestDraftsScreenState extends State<AdminTestDraftsScreen> with Widg
     _load();
     _listenLive();
     // safety net: refresh every 30 s even if the live connection drops
-    _poll = Timer.periodic(const Duration(seconds: 30), (_) => _load(quiet: true));
+    _poll = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _load(quiet: true),
+    );
   }
 
   @override
@@ -90,12 +107,15 @@ class _AdminTestDraftsScreenState extends State<AdminTestDraftsScreen> with Widg
   void _listenLive() {
     try {
       final uri = Uri.parse(ApiEndpoints.baseUrl);
-      _socket = IO.io('${uri.scheme}://${uri.host}:${uri.port}', <String, dynamic>{
-        'transports': ['websocket'],
-        'autoConnect': true,
-        'forceNew': true,
-        'auth': {'token': ApiHeaders.token ?? ''},
-      });
+      _socket = IO.io(
+        '${uri.scheme}://${uri.host}:${uri.port}',
+        <String, dynamic>{
+          'transports': ['websocket'],
+          'autoConnect': true,
+          'forceNew': true,
+          'auth': {'token': ApiHeaders.token ?? ''},
+        },
+      );
       _socket?.onConnect((_) {
         _socket?.emit('join_admin_room');
         _load(quiet: true);
@@ -104,12 +124,16 @@ class _AdminTestDraftsScreenState extends State<AdminTestDraftsScreen> with Widg
       _socket?.on('test_draft_new', (data) {
         if (!mounted) return;
         _load(quiet: true);
-        final who = data is Map ? (data['createdByName'] ?? 'A trainer').toString() : 'A trainer';
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('📝 $who sent a test for approval'),
-          backgroundColor: _purple,
-          duration: const Duration(seconds: 3),
-        ));
+        final who = data is Map
+            ? (data['createdByName'] ?? 'A trainer').toString()
+            : 'A trainer';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('📝 $who sent a test for approval'),
+            backgroundColor: _purple,
+            duration: const Duration(seconds: 3),
+          ),
+        );
       });
       _socket?.on('test_draft_updated', (_) {
         if (mounted) _load(quiet: true);
@@ -124,13 +148,23 @@ class _AdminTestDraftsScreenState extends State<AdminTestDraftsScreen> with Widg
     if (!quiet) setState(() => _loading = true);
     try {
       final res = await http
-          .get(Uri.parse(_api('/admin/test-drafts?status=$_status&_t=${DateTime.now().millisecondsSinceEpoch}')),
-              headers: ApiHeaders.auth())
+          .get(
+            Uri.parse(
+              _api(
+                '/admin/test-drafts?status=$_status&_t=${DateTime.now().millisecondsSinceEpoch}',
+              ),
+            ),
+            headers: ApiHeaders.auth(),
+          )
           .timeout(const Duration(seconds: 20));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
-        _drafts = ((data['drafts'] ?? []) as List).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
-        if (data['counts'] is Map) _counts = Map<String, dynamic>.from(data['counts']);
+        _drafts = ((data['drafts'] ?? []) as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+        if (data['counts'] is Map)
+          _counts = Map<String, dynamic>.from(data['counts']);
       }
     } catch (e) {
       debugPrint('Trainer tests load error: $e');
@@ -141,7 +175,9 @@ class _AdminTestDraftsScreenState extends State<AdminTestDraftsScreen> with Widg
   Future<void> _open(Map<String, dynamic> d) async {
     final changed = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(builder: (_) => AdminTestDraftDetailScreen(id: d['_id'].toString())),
+      MaterialPageRoute(
+        builder: (_) => AdminTestDraftDetailScreen(id: d['_id'].toString()),
+      ),
     );
     if (changed == true) _load();
   }
@@ -158,11 +194,25 @@ class _AdminTestDraftsScreenState extends State<AdminTestDraftsScreen> with Widg
         iconTheme: const IconThemeData(color: _text),
         actionsIconTheme: const IconThemeData(color: _text),
         automaticallyImplyLeading: !widget.embedded,
-        leading: widget.embedded && AdminShellNavigation.shouldShowMenuButton(context)
-            ? IconButton(icon: const Icon(Icons.menu_rounded), onPressed: AdminShellNavigation.openDrawer)
+        leading:
+            widget.embedded &&
+                AdminShellNavigation.shouldShowMenuButton(context)
+            ? IconButton(
+                icon: const Icon(Icons.menu_rounded),
+                onPressed: AdminShellNavigation.openDrawer,
+              )
             : null,
-        title: Text('Trainer tests', style: GoogleFonts.poppins(fontWeight: FontWeight.w800, fontSize: 17, color: _text)),
-        actions: [IconButton(onPressed: _load, icon: const Icon(Icons.refresh_rounded))],
+        title: Text(
+          'Trainer tests',
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w800,
+            fontSize: 17,
+            color: _text,
+          ),
+        ),
+        actions: [
+          IconButton(onPressed: _load, icon: const Icon(Icons.refresh_rounded)),
+        ],
       ),
       body: Column(
         children: [
@@ -182,10 +232,15 @@ class _AdminTestDraftsScreenState extends State<AdminTestDraftsScreen> with Widg
                       showCheckmark: false,
                       label: Text('${t.$2}  $n'),
                       labelStyle: GoogleFonts.poppins(
-                          fontSize: 12.5, fontWeight: FontWeight.w700, color: sel ? Colors.white : _text),
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: sel ? Colors.white : _text,
+                      ),
                       selectedColor: t.$3,
                       backgroundColor: _bg,
-                      side: BorderSide(color: sel ? Colors.transparent : _border),
+                      side: BorderSide(
+                        color: sel ? Colors.transparent : _border,
+                      ),
                       onSelected: (_) {
                         _status = t.$1;
                         _load();
@@ -202,20 +257,24 @@ class _AdminTestDraftsScreenState extends State<AdminTestDraftsScreen> with Widg
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
                   : _drafts.isEmpty
-                      ? ListView(children: [
-                          Padding(
-                            padding: const EdgeInsets.all(50),
-                            child: Text(
-                              _status == 'pending' ? 'No trainer tests waiting. 🎉' : 'Nothing here.',
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.poppins(color: _secondary),
-                            ),
+                  ? ListView(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(50),
+                          child: Text(
+                            _status == 'pending'
+                                ? 'No trainer tests waiting. 🎉'
+                                : 'Nothing here.',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.poppins(color: _secondary),
                           ),
-                        ])
-                      : ListView(
-                          padding: const EdgeInsets.fromLTRB(16, 14, 16, 30),
-                          children: _drafts.map(_card).toList(),
                         ),
+                      ],
+                    )
+                  : ListView(
+                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 30),
+                      children: _drafts.map(_card).toList(),
+                    ),
             ),
           ),
         ],
@@ -236,13 +295,23 @@ class _AdminTestDraftsScreenState extends State<AdminTestDraftsScreen> with Widg
         onTap: () => _open(d),
         contentPadding: const EdgeInsets.fromLTRB(14, 6, 10, 6),
         title: Text(
-          title.isEmpty ? '${d['language']} ${_stageLabel(d['stage'].toString())} test' : title,
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14, color: _text),
+          title.isEmpty
+              ? '${d['language']} ${_stageLabel(d['stage'].toString())} test'
+              : title,
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w700,
+            fontSize: 14,
+            color: _text,
+          ),
         ),
         subtitle: Text(
           '${d['language']} • ${_stageLabel(d['stage'].toString())} • ${d['questionCount'] ?? 0} questions • ${d['durationMinutes'] ?? 25} min\n'
           'By ${d['createdByName'] ?? 'trainer'} • ${_date(d['updatedAt']?.toString())}',
-          style: GoogleFonts.poppins(fontSize: 11.5, color: _secondary, height: 1.4),
+          style: GoogleFonts.poppins(
+            fontSize: 11.5,
+            color: _secondary,
+            height: 1.4,
+          ),
         ),
         trailing: const Icon(Icons.chevron_right_rounded, color: _secondary),
       ),
@@ -258,10 +327,12 @@ class AdminTestDraftDetailScreen extends StatefulWidget {
   const AdminTestDraftDetailScreen({super.key, required this.id});
 
   @override
-  State<AdminTestDraftDetailScreen> createState() => _AdminTestDraftDetailScreenState();
+  State<AdminTestDraftDetailScreen> createState() =>
+      _AdminTestDraftDetailScreenState();
 }
 
-class _AdminTestDraftDetailScreenState extends State<AdminTestDraftDetailScreen> {
+class _AdminTestDraftDetailScreenState
+    extends State<AdminTestDraftDetailScreen> {
   Map<String, dynamic>? _d;
   bool _loading = true;
   bool _busy = false;
@@ -276,7 +347,10 @@ class _AdminTestDraftDetailScreenState extends State<AdminTestDraftDetailScreen>
   Future<void> _load() async {
     try {
       final res = await http
-          .get(Uri.parse(_api('/admin/test-draft?id=${widget.id}')), headers: ApiHeaders.auth())
+          .get(
+            Uri.parse(_api('/admin/test-draft?id=${widget.id}')),
+            headers: ApiHeaders.auth(),
+          )
           .timeout(const Duration(seconds: 20));
       if (res.statusCode == 200) {
         _d = Map<String, dynamic>.from(jsonDecode(res.body)['draft']);
@@ -296,18 +370,42 @@ class _AdminTestDraftDetailScreenState extends State<AdminTestDraftDetailScreen>
       final ctrl = TextEditingController();
       final ok = await showDialog<bool>(
         context: context,
-        builder: (ctx) => AlertDialog(
-          title: Text('Send back to trainer', style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
-          content: TextField(
+        builder: (ctx) => _lightDialog(
+          ctx,
+          icon: Icons.undo_rounded,
+          color: _red,
+          title: 'Send back to trainer',
+          message:
+              'The trainer sees your note, fixes the test and sends it again.',
+          confirm: 'Send back',
+          extra: TextField(
             controller: ctrl,
             maxLines: 3,
             maxLength: 500,
-            decoration: const InputDecoration(hintText: 'What should the trainer fix?'),
+            autofocus: true,
+            style: GoogleFonts.poppins(fontSize: 13, color: _text),
+            cursorColor: _red,
+            decoration: InputDecoration(
+              hintText:
+                  'What should the trainer fix? e.g. "Q3 has two correct answers"',
+              hintStyle: GoogleFonts.poppins(fontSize: 12, color: _secondary),
+              filled: true,
+              fillColor: _bg,
+              contentPadding: const EdgeInsets.all(12),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: _border),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: _border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: _red),
+              ),
+            ),
           ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-            TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Send back')),
-          ],
         ),
       );
       note = ctrl.text.trim();
@@ -316,20 +414,27 @@ class _AdminTestDraftDetailScreenState extends State<AdminTestDraftDetailScreen>
     } else if (action == 'release') {
       final ok = await showDialog<bool>(
         context: context,
-        builder: (ctx) => AlertDialog(
-          title: Text('Release to students?', style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
-          content: Text(
-            'This becomes the LIVE test for ${d['language']} ${_stageLabel(d['stage'].toString())}.\n'
-            'It replaces the current test of that stage. Old results stay saved.',
-            style: GoogleFonts.poppins(fontSize: 13),
+        builder: (ctx) => _lightDialog(
+          ctx,
+          icon: Icons.rocket_launch_rounded,
+          color: _green,
+          title: 'Release to students?',
+          message:
+              'This becomes the LIVE test for ${d['language']} ${_stageLabel(d['stage'].toString())}.',
+          confirm: 'Release',
+          extra: Column(
+            children: [
+              _point(
+                Icons.swap_horiz_rounded,
+                'It replaces the current test of that stage.',
+              ),
+              _point(Icons.history_rounded, 'Old results stay saved.'),
+              _point(
+                Icons.notifications_active_rounded,
+                'Students of that stage can take it now.',
+              ),
+            ],
           ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Release', style: TextStyle(color: _green, fontWeight: FontWeight.w700)),
-            ),
-          ],
         ),
       );
       if (ok != true) return;
@@ -368,8 +473,115 @@ class _AdminTestDraftDetailScreenState extends State<AdminTestDraftDetailScreen>
     if (mounted) setState(() => _busy = false);
   }
 
-  void _snack(String m, bool ok) => ScaffoldMessenger.of(context)
-      .showSnackBar(SnackBar(content: Text(m), backgroundColor: ok ? _green : _red));
+  void _snack(String m, bool ok) => ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text(m), backgroundColor: ok ? _green : _red),
+  );
+
+  /// ☀️ Light dialog (always white, even when the app theme is dark)
+  Widget _lightDialog(
+    BuildContext ctx, {
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String message,
+    required String confirm,
+    Widget? extra,
+  }) {
+    return AlertDialog(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      titlePadding: const EdgeInsets.fromLTRB(22, 22, 22, 6),
+      contentPadding: const EdgeInsets.fromLTRB(22, 6, 22, 4),
+      actionsPadding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      title: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: color.withOpacity(.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: color, size: 21),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              title,
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w800,
+                fontSize: 16,
+                color: _text,
+              ),
+            ),
+          ),
+        ],
+      ),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              message,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                color: _secondary,
+                height: 1.45,
+              ),
+            ),
+            if (extra != null) ...[const SizedBox(height: 12), extra],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: Text(
+            'Cancel',
+            style: GoogleFonts.poppins(
+              color: _secondary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: color,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          child: Text(
+            confirm,
+            style: GoogleFonts.poppins(fontWeight: FontWeight.w800),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _point(IconData icon, String text) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Row(
+      children: [
+        Icon(icon, size: 16, color: _green),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: GoogleFonts.poppins(fontSize: 12.5, color: _text),
+          ),
+        ),
+      ],
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -380,8 +592,17 @@ class _AdminTestDraftDetailScreenState extends State<AdminTestDraftDetailScreen>
       appBar: AppBar(
         backgroundColor: Colors.white,
         foregroundColor: _text,
+        surfaceTintColor: Colors.white,
         elevation: 0,
-        title: Text('Check test', style: GoogleFonts.poppins(fontWeight: FontWeight.w800, fontSize: 17)),
+        iconTheme: const IconThemeData(color: _text),
+        title: Text(
+          'Check test',
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w800,
+            fontSize: 17,
+            color: _text,
+          ),
+        ),
       ),
       bottomNavigationBar: d == null || status == 'released'
           ? null
@@ -396,10 +617,18 @@ class _AdminTestDraftDetailScreenState extends State<AdminTestDraftDetailScreen>
                         style: OutlinedButton.styleFrom(
                           minimumSize: const Size.fromHeight(48),
                           side: const BorderSide(color: _red),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
-                        child: Text('Send back',
-                            style: GoogleFonts.poppins(color: _red, fontWeight: FontWeight.w700, fontSize: 12.5)),
+                        child: Text(
+                          'Send back',
+                          style: GoogleFonts.poppins(
+                            color: _red,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12.5,
+                          ),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -410,10 +639,18 @@ class _AdminTestDraftDetailScreenState extends State<AdminTestDraftDetailScreen>
                           style: OutlinedButton.styleFrom(
                             minimumSize: const Size.fromHeight(48),
                             side: const BorderSide(color: _purple),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
-                          child: Text('Approve',
-                              style: GoogleFonts.poppins(color: _purple, fontWeight: FontWeight.w700, fontSize: 12.5)),
+                          child: Text(
+                            'Approve',
+                            style: GoogleFonts.poppins(
+                              color: _purple,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12.5,
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -426,13 +663,28 @@ class _AdminTestDraftDetailScreenState extends State<AdminTestDraftDetailScreen>
                           minimumSize: const Size.fromHeight(48),
                           backgroundColor: _green,
                           foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                         child: _busy
                             ? const SizedBox(
-                                width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                            : Text(status == 'approved' ? 'Release to students' : 'Approve & release',
-                                style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 12.5)),
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : Text(
+                                status == 'approved'
+                                    ? 'Release to students'
+                                    : 'Approve & release',
+                                style: GoogleFonts.poppins(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12.5,
+                                ),
+                              ),
                       ),
                     ),
                   ],
@@ -442,52 +694,80 @@ class _AdminTestDraftDetailScreenState extends State<AdminTestDraftDetailScreen>
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : d == null
-              ? Center(child: Text('Could not load this test', style: GoogleFonts.poppins(color: _secondary)))
-              : ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 30),
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: _border),
+          ? Center(
+              child: Text(
+                'Could not load this test',
+                style: GoogleFonts.poppins(color: _secondary),
+              ),
+            )
+          : ListView(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 30),
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: _border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        (d['title'] ?? '').toString().isEmpty
+                            ? '${d['language']} ${_stageLabel(d['stage'].toString())} test'
+                            : d['title'].toString(),
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                          color: _text,
+                        ),
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            (d['title'] ?? '').toString().isEmpty
-                                ? '${d['language']} ${_stageLabel(d['stage'].toString())} test'
-                                : d['title'].toString(),
-                            style: GoogleFonts.poppins(fontWeight: FontWeight.w800, fontSize: 16, color: _text),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '${d['language']} • ${_stageLabel(d['stage'].toString())} • ${_questions.length} questions • ${d['durationMinutes']} min',
-                            style: GoogleFonts.poppins(fontSize: 12, color: _secondary),
-                          ),
-                          Text('Written by ${d['createdByName'] ?? 'trainer'} • ${_date(d['updatedAt']?.toString())}',
-                              style: GoogleFonts.poppins(fontSize: 12, color: _secondary)),
-                          if ((d['reviewNote'] ?? '').toString().isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: Text('Last note: ${d['reviewNote']}',
-                                  style: GoogleFonts.poppins(fontSize: 12, color: _text)),
-                            ),
-                          if (status != 'released')
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: Text('Tip: tap 🗑 on a bad question to leave it out.',
-                                  style: GoogleFonts.poppins(fontSize: 11, color: _secondary)),
-                            ),
-                        ],
+                      const SizedBox(height: 4),
+                      Text(
+                        '${d['language']} • ${_stageLabel(d['stage'].toString())} • ${_questions.length} questions • ${d['durationMinutes']} min',
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: _secondary,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    for (var i = 0; i < _questions.length; i++) _question(i, status != 'released'),
-                  ],
+                      Text(
+                        'Written by ${d['createdByName'] ?? 'trainer'} • ${_date(d['updatedAt']?.toString())}',
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: _secondary,
+                        ),
+                      ),
+                      if ((d['reviewNote'] ?? '').toString().isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            'Last note: ${d['reviewNote']}',
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: _text,
+                            ),
+                          ),
+                        ),
+                      if (status != 'released')
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            'Tip: tap 🗑 on a bad question to leave it out.',
+                            style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              color: _secondary,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
+                const SizedBox(height: 12),
+                for (var i = 0; i < _questions.length; i++)
+                  _question(i, status != 'released'),
+              ],
+            ),
     );
   }
 
@@ -516,16 +796,29 @@ class _AdminTestDraftDetailScreenState extends State<AdminTestDraftDetailScreen>
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.only(top: 6),
-                    child: Text('${i + 1}. ${q['questionText']}',
-                        style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13.5, color: _text)),
+                    child: Text(
+                      '${i + 1}. ${q['questionText']}',
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13.5,
+                        color: _text,
+                      ),
+                    ),
                   ),
                 ),
                 if (editable)
                   IconButton(
                     tooltip: removed ? 'Keep' : 'Leave out',
-                    onPressed: () => setState(() => removed ? _removed.remove(i) : _removed.add(i)),
-                    icon: Icon(removed ? Icons.undo_rounded : Icons.delete_outline_rounded,
-                        color: removed ? _navy : Colors.black38, size: 20),
+                    onPressed: () => setState(
+                      () => removed ? _removed.remove(i) : _removed.add(i),
+                    ),
+                    icon: Icon(
+                      removed
+                          ? Icons.undo_rounded
+                          : Icons.delete_outline_rounded,
+                      color: removed ? _navy : Colors.black38,
+                      size: 20,
+                    ),
                   ),
               ],
             ),
@@ -533,21 +826,41 @@ class _AdminTestDraftDetailScreenState extends State<AdminTestDraftDetailScreen>
             for (var k = 0; k < opts.length; k++)
               Container(
                 margin: const EdgeInsets.only(top: 5, right: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: k == correct ? _green.withOpacity(.1) : _bg,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: k == correct ? _green : Colors.transparent),
+                  border: Border.all(
+                    color: k == correct ? _green : Colors.transparent,
+                  ),
                 ),
                 child: Row(
                   children: [
-                    Text('${k < letters.length ? letters[k] : k + 1}. ',
-                        style: GoogleFonts.poppins(fontWeight: FontWeight.w700, color: k == correct ? _green : _secondary)),
-                    Expanded(
-                      child: Text(opts[k].toString(),
-                          style: GoogleFonts.poppins(fontSize: 12.5, color: _text)),
+                    Text(
+                      '${k < letters.length ? letters[k] : k + 1}. ',
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w700,
+                        color: k == correct ? _green : _secondary,
+                      ),
                     ),
-                    if (k == correct) const Icon(Icons.check_circle_rounded, color: _green, size: 18),
+                    Expanded(
+                      child: Text(
+                        opts[k].toString(),
+                        style: GoogleFonts.poppins(
+                          fontSize: 12.5,
+                          color: _text,
+                        ),
+                      ),
+                    ),
+                    if (k == correct)
+                      const Icon(
+                        Icons.check_circle_rounded,
+                        color: _green,
+                        size: 18,
+                      ),
                   ],
                 ),
               ),

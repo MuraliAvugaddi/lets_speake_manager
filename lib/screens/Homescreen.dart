@@ -37,6 +37,7 @@ import 'package:lets_speake_manager/screens/AdminAppUpdateScreen.dart';
 import 'package:lets_speake_manager/screens/AdminModeChangesScreen.dart';
 import 'package:lets_speake_manager/screens/AdminTestDraftsScreen.dart';
 import 'package:lets_speake_manager/screens/AdminDropoutsScreen.dart';
+import 'package:lets_speake_manager/screens/AdminPromoteScreen.dart';
 import 'package:lets_speake_manager/screens/AdminLiveClassesScreen.dart';
 import 'package:lets_speake_manager/Api/admin_live.dart';
 
@@ -155,6 +156,15 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
       color: Color(0xFFE59E1B),
     ),
 
+    // 🎓 move a whole class to the next stage (old stage = material only)
+    _AdminModule(
+      index: 17,
+      title: 'Promote Students',
+      subtitle: 'Next stage • old stage = material only',
+      icon: Icons.trending_up_rounded,
+      color: Color(0xFF16A66A),
+    ),
+
     // 🚪 students who stopped in the middle (principal calls them)
     _AdminModule(
       index: 15,
@@ -214,7 +224,8 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
   // 9-11 = engage modules
   // ============================================================
 
-  static const int pageCount = 17; // 12 = App Update, 13 = Converted Students, 14 = Trainer Tests, 15 = Dropouts, 16 = Watch Live Classes
+  static const int pageCount =
+      18; // 12 = App Update, 13 = Converted Students, 14 = Trainer Tests, 15 = Dropouts, 16 = Watch Live Classes, 17 = Promote Students
 
   final List<Widget?> _pages = List<Widget?>.filled(pageCount, null);
 
@@ -340,6 +351,10 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
       case 16:
         return const AdminLiveClassesScreen(embedded: true);
 
+      // 🎓 promote a class to the next stage
+      case 17:
+        return const AdminPromoteScreen(embedded: true);
+
       default:
         return const SizedBox.shrink();
     }
@@ -413,7 +428,10 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
     });
   }
 
-  Widget _groupTitle(String title, {EdgeInsets padding = const EdgeInsets.fromLTRB(10, 14, 10, 9)}) {
+  Widget _groupTitle(
+    String title, {
+    EdgeInsets padding = const EdgeInsets.fromLTRB(10, 14, 10, 9),
+  }) {
     return Padding(
       padding: padding,
       child: Text(
@@ -519,38 +537,7 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
         right: false,
         child: Column(
           children: [
-            // ----------------------------------------------------
-            // TITLE
-            // ----------------------------------------------------
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "Let's Speak",
-                      style: GoogleFonts.poppins(
-                        color: navy,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-
-                    Text(
-                      'Admin Portal',
-                      style: GoogleFonts.poppins(
-                        color: secondaryText,
-                        fontSize: 10.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            const Divider(height: 1, color: border),
+            const SizedBox(height: 12),
 
             // ----------------------------------------------------
             // MANAGEMENT TITLE
@@ -624,17 +611,7 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
               padding: const EdgeInsets.fromLTRB(18, 20, 10, 18),
               child: Row(
                 children: [
-                  Expanded(
-                    child: Text(
-                      "Let's Speak\nAdmin Portal",
-                      style: GoogleFonts.poppins(
-                        color: navy,
-                        fontSize: 16,
-                        height: 1.25,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
+                  const Spacer(),
 
                   IconButton(
                     onPressed: AdminShellNavigation.closeDrawer,

@@ -151,6 +151,8 @@ class AdminController extends GetxController {
     Map? hindiBatch,
     String? batchTime,
     String? onlineSection,
+    Map? englishDone,
+    Map? hindiDone,
   }) async {
     String? token = box.read('token');
     try {
@@ -169,6 +171,8 @@ class AdminController extends GetxController {
           if (hindiBatch != null) "hindiBatch": hindiBatch,
           if (batchTime != null) "batchTime": batchTime,
           if (onlineSection != null) "onlineSection": onlineSection,
+          if (englishDone != null) "englishDone": englishDone,
+          if (hindiDone != null) "hindiDone": hindiDone,
         }),
       );
 
@@ -189,6 +193,8 @@ class AdminController extends GetxController {
           var userObj = Map<String, dynamic>.from(usersList[index]);
           userObj['englishAccess'] = englishAccess;
           userObj['hindiAccess'] = hindiAccess;
+          if (englishDone != null) userObj['englishDone'] = englishDone;
+          if (hindiDone != null) userObj['hindiDone'] = hindiDone;
           userObj['mode'] = mode.toLowerCase();
           usersList[index] = userObj;
         }

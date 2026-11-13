@@ -54,8 +54,12 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
   final AdminController adminController =
       Get.isRegistered<AdminController>() ? Get.find<AdminController>() : Get.put(AdminController());
 
-  late Map<String, dynamic> englishAccess;
+  late Map<String, dynamic> englishAccess; // CURRENT stages → live class, attendance, tests
   late Map<String, dynamic> hindiAccess;
+  // ✅ FINISHED stages (promoted / dropout) → study material only
+  Map<String, dynamic> englishDone = {};
+  Map<String, dynamic> hindiDone = {};
+  bool _promoting = false;
   late String selectedMode;
   late String selectedSection; // "A".."E" or ""
   late String selectedFeeStatus;
@@ -148,6 +152,8 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
   void _readFrom(Map<String, dynamic> u) {
     englishAccess = _readAccess(u['englishAccess']);
     hindiAccess = _readAccess(u['hindiAccess']);
+    englishDone = _readAccess(u['englishDone']);
+    hindiDone = _readAccess(u['hindiDone']);
     selectedMode = (u['mode'] ?? 'online').toString().toLowerCase();
     final sec = (u['onlineSection'] ?? '').toString().toUpperCase();
     selectedSection = sections.contains(sec) ? sec : '';
@@ -172,6 +178,8 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
   String _snapshot() => jsonEncode({
         'e': {for (final k in stageKeys) k: englishAccess[k] == true},
         'h': {for (final k in stageKeys) k: hindiAccess[k] == true},
+        'ed': {for (final k in stageKeys) k: englishDone[k] == true},
+        'hd': {for (final k in stageKeys) k: hindiDone[k] == true},
         'm': selectedMode,
         's': selectedSection,
         'b': selectedBatch,
@@ -189,6 +197,8 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
     return jsonEncode({
       'e': ea,
       'h': ha,
+      'ed': _readAccess(u['englishDone']),
+      'hd': _readAccess(u['hindiDone']),
       'm': (u['mode'] ?? 'online').toString().toLowerCase(),
       's': sections.contains(sec) ? sec : '',
       'b': BatchSlots.labelOf(u['batchTime']),
@@ -713,6 +723,8 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
         hindiBatch: hindiBatch,
         batchTime: selectedBatch,
         onlineSection: section,
+        englishDone: englishDone,
+        hindiDone: hindiDone,
       );
 
       final response = await http.put(
@@ -739,6 +751,8 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
           updated['hindiBatch'] = Map<String, String>.from(hindiBatch);
           updated['englishAccess'] = Map<String, dynamic>.from(englishAccess);
           updated['hindiAccess'] = Map<String, dynamic>.from(hindiAccess);
+          updated['englishDone'] = Map<String, dynamic>.from(englishDone);
+          updated['hindiDone'] = Map<String, dynamic>.from(hindiDone);
           updated['onlineSection'] = section;
           updated['mode'] = selectedMode;
           adminController.usersList[idx] = updated;
@@ -753,6 +767,8 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
             'hindiBatch': Map<String, String>.from(hindiBatch),
             'englishAccess': Map<String, dynamic>.from(englishAccess),
             'hindiAccess': Map<String, dynamic>.from(hindiAccess),
+            'englishDone': Map<String, dynamic>.from(englishDone),
+            'hindiDone': Map<String, dynamic>.from(hindiDone),
             'onlineSection': section,
             'mode': selectedMode,
             'feeStatus': selectedFeeStatus,
@@ -1253,6 +1269,7 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
                                   setState(() {
                                     if (needsSection) selectedSection = tempSection;
                                     accessMap[key] = true;
+                                    (isEnglish ? englishDone : hindiDone)[key] = false; // current again
                                     batchMap[key] = tempTiming;
                                     if (selectedBatch.isEmpty) selectedBatch = tempTiming;
                                   });
@@ -1858,8 +1875,8 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
       return _infoRow(
         icon: Icons.person_off_rounded,
         color: const Color(0xFFE45757),
-        title: 'Dropout — all access is off',
-        subtitle: 'See reason, fees and call notes in Dropouts',
+        title: 'Dropout — live class is off',
+        subtitle: 'Only study material is open. Rejoin from Dropouts.',
         action: 'Open',
         onTap: () => Navigator.push(
           context,
@@ -1871,7 +1888,7 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
       icon: Icons.person_remove_alt_1_rounded,
       color: const Color(0xFFE45757),
       title: 'Student stopped coming?',
-      subtitle: 'Mark as dropout with a reason (access goes off)',
+      subtitle: 'Live class, tests, fees and alerts go off. Material stays open.',
       action: 'Dropout',
       onTap: () async {
         if (_dirty) {
@@ -1881,11 +1898,15 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
         final ok = await showMarkDropoutSheet(context, _user);
         if (!ok || !mounted) return;
         final off = {for (var i = 1; i <= 7; i++) 'stage$i': false};
+        // every stage the student had → study material only
+        Map<String, bool> keep(Map a, Map d) => {for (final k in stageKeys) k: a[k] == true || d[k] == true};
         setState(() {
           _user = {
             ..._user,
             'isDropout': true,
             'droppedAt': DateTime.now().toIso8601String(),
+            'englishDone': keep(englishAccess, englishDone),
+            'hindiDone': keep(hindiAccess, hindiDone),
             'englishAccess': off,
             'hindiAccess': Map<String, bool>.from(off),
           };
@@ -2056,6 +2077,7 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
               onTap: _openSectionSheet,
             ),
           ],
+          _promoteBar(isEnglish),
           const SizedBox(height: 12),
           LayoutBuilder(builder: (ctx, c) {
             final twoCols = c.maxWidth >= 640;
@@ -2100,6 +2122,9 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
     final on = access[key] == true;
     final accent = isEnglish ? navy : blue;
     final no = _stageNo(key);
+    final finished = !on && (isEnglish ? englishDone : hindiDone)[key] == true;
+
+    if (finished) return _finishedTile(isEnglish, key);
 
     if (!on) {
       return InkWell(
@@ -2220,6 +2245,195 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
               ),
             ),
             const Icon(Icons.chevron_right_rounded, color: secondaryText),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // =========================================================
+  // 🎓 PROMOTE (current stage → finished, next stage → current)
+  // =========================================================
+  String? _currentStage(bool isEnglish) {
+    final access = isEnglish ? englishAccess : hindiAccess;
+    for (final k in stageKeys.reversed) {
+      if (access[k] == true) return k;
+    }
+    return null;
+  }
+
+  /// One row per CURRENT stage. A student can study two stages at two timings
+  /// (e.g. Stage 1 at 5:30 AM + Stage 2 at 3:30 PM) → finish each one separately.
+  Widget _promoteBar(bool isEnglish) {
+    if (_user['isDropout'] == true) return const SizedBox.shrink();
+    final access = isEnglish ? englishAccess : hindiAccess;
+    final current = stageKeys.where((k) => access[k] == true).toList();
+    if (current.isEmpty) return const SizedBox.shrink();
+    final lang = isEnglish ? 'English' : 'Hindi';
+    return Column(
+      children: [
+        for (final from in current) _promoteRow(isEnglish, from, access, lang),
+      ],
+    );
+  }
+
+  Widget _promoteRow(bool isEnglish, String from, Map<String, dynamic> access, String lang) {
+    final n = int.parse(_stageNo(from));
+    final last = n >= 7;
+    final nextAlreadyOn = !last && access['stage${n + 1}'] == true;
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: _infoRow(
+        icon: last ? Icons.emoji_events_rounded : (nextAlreadyOn ? Icons.task_alt_rounded : Icons.trending_up_rounded),
+        color: green,
+        title: last ? 'Finished Stage 7?' : 'Stage $n finished?',
+        subtitle: last
+            ? 'Complete the $lang course. All material stays open, no live class.'
+            : nextAlreadyOn
+                ? 'Close the Stage $n class. Stage ${n + 1} stays as it is. Stage $n = material only.'
+                : 'Promote to Stage ${n + 1}. Stage $n becomes study material only.',
+        action: _promoting ? '…' : (last ? 'Complete' : (nextAlreadyOn ? 'Finish' : 'Promote')),
+        onTap: () => _promote(isEnglish, from),
+      ),
+    );
+  }
+
+  Future<void> _promote(bool isEnglish, String from) async {
+    if (_promoting) return;
+    if (_dirty) {
+      _snack('Save first', 'Save your other changes first.', amberText, icon: Icons.save_rounded);
+      return;
+    }
+    final n = int.parse(_stageNo(from));
+    final lang = isEnglish ? 'English' : 'Hindi';
+    final nextAlreadyOn = n < 7 && (isEnglish ? englishAccess : hindiAccess)['stage${n + 1}'] == true;
+    final ok = await Get.dialog<bool>(
+      AlertDialog(
+        backgroundColor: cardBg,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Text(
+            n >= 7 ? 'Complete the course?' : (nextAlreadyOn ? 'Finish Stage $n?' : 'Promote to Stage ${n + 1}?'),
+            style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: textColor)),
+        content: Text(
+          n >= 7
+              ? '$_firstName finished $lang Stage 7.\n\n• No more live class or attendance\n• All study material stays open'
+              : nextAlreadyOn
+              ? '$_firstName finished $lang Stage $n.\n\n'
+                  '• Stage $n: only study material (no join class, no attendance)\n'
+                  '• Stage ${n + 1}: stays as it is (same timing)'
+              : '$_firstName moves to $lang Stage ${n + 1}.\n\n'
+                  '• Stage ${n + 1}: live class, attendance, tests, reminders\n'
+                  '• Stage $n: only study material (no join class, no attendance)\n'
+                  '• Same class timing: ${BatchSlots.shortOf(_stageTiming(isEnglish, from))}',
+          style: GoogleFonts.poppins(fontSize: 12, height: 1.5, color: secondaryText),
+        ),
+        actions: [
+          TextButton(onPressed: () => Get.back(result: false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Get.back(result: true),
+            style: ElevatedButton.styleFrom(backgroundColor: green, foregroundColor: Colors.white, elevation: 0),
+            child: Text(n >= 7 ? 'Complete' : (nextAlreadyOn ? 'Finish' : 'Promote')),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _promoting = true);
+    try {
+      final res = await http.post(
+        Uri.parse(ApiEndpoints.promote),
+        headers: ApiHeaders.json(),
+        body: jsonEncode({"userIds": [_userId], "language": lang, "stage": from}),
+      );
+      final body = jsonDecode(res.body);
+      final promoted = res.statusCode == 200 && body is Map && (body['promoted'] as List? ?? []).isNotEmpty;
+      if (promoted) {
+        _snack('Promoted 🎉', body['message']?.toString() ?? 'Done', green, icon: Icons.check_circle_rounded);
+        await _reloadStudentNow();
+        _fetchClassLoad();
+      } else {
+        final skipped = body is Map ? (body['skipped'] as List? ?? []) : [];
+        final why = skipped.isNotEmpty ? skipped.first['reason'] : (body is Map ? body['message'] : null);
+        _snack('Not promoted', (why ?? 'Could not promote (${res.statusCode})').toString(), red,
+            icon: Icons.error_outline_rounded);
+      }
+    } catch (e) {
+      _snack('Not promoted', 'Connection error: $e', red, icon: Icons.error_outline_rounded);
+    } finally {
+      if (mounted) setState(() => _promoting = false);
+    }
+  }
+
+  /// Server copy → screen right away (after promote; nothing is being edited)
+  Future<void> _reloadStudentNow() async {
+    try {
+      final res = await http.get(
+        Uri.parse("${ApiEndpoints.baseUrl}/admin/student/$_userId?_t=${DateTime.now().millisecondsSinceEpoch}"),
+        headers: ApiHeaders.auth(),
+      );
+      if (!mounted || res.statusCode != 200) return;
+      final body = jsonDecode(res.body);
+      final u = body is Map && body['user'] is Map ? body['user'] : body;
+      if (u is! Map) return;
+      final fresh = {..._user, ..._copy(u)};
+      setState(() {
+        _user = fresh;
+        _pendingRemote = null;
+        _readFrom(fresh);
+      });
+      final idx = adminController.usersList.indexWhere((x) => (x['_id'] ?? x['id']).toString() == _userId);
+      if (idx != -1) adminController.usersList[idx] = {...Map<String, dynamic>.from(adminController.usersList[idx]), ..._copy(u)};
+    } catch (e) {
+      debugPrint('Reload student error: $e');
+    }
+  }
+
+  /// Finished stage: only study material. Tap → make it a current stage again (with timing).
+  Widget _finishedTile(bool isEnglish, String key) {
+    final no = _stageNo(key);
+    return InkWell(
+      borderRadius: BorderRadius.circular(13),
+      onTap: () => _openStageSheet(isEnglish: isEnglish, key: key),
+      child: Container(
+        height: 64,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: green.withOpacity(.06),
+          borderRadius: BorderRadius.circular(13),
+          border: Border.all(color: green.withOpacity(.30)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(color: green.withOpacity(.14), shape: BoxShape.circle),
+              child: const Icon(Icons.menu_book_rounded, color: green, size: 17),
+            ),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Stage $no · Finished',
+                      style: GoogleFonts.poppins(color: textColor, fontSize: 12, fontWeight: FontWeight.w700)),
+                  Text('Study material only — no live class',
+                      style: GoogleFonts.poppins(color: green, fontSize: 9.5, fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(9),
+                border: Border.all(color: borderColor),
+              ),
+              child: Text('Live again',
+                  style: GoogleFonts.poppins(color: secondaryText, fontSize: 10, fontWeight: FontWeight.w700)),
+            ),
           ],
         ),
       ),

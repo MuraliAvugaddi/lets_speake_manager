@@ -15,14 +15,12 @@ void main() async {
 }
 
 class MyApp extends StatelessWidget {
-
   const MyApp({super.key});
   @override
   Widget build(BuildContext context) {
     return GetMaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Lets Talk Admin',
-
+      title: "Let's Speak with Surendra • Admin",
       // 3. Global Theme Setup
       theme: ThemeData(
         useMaterial3: true,

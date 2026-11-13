@@ -37,6 +37,10 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
   static const Color heading = Color(0xFF103E5D);
   static const Color body = Color(0xFF56758B);
 
+  // 🖼 new logo (also listed in pubspec.yaml under assets:)
+  static const String logoAsset =
+      "assets/images/let'sspeak new logo with sir photo.png";
+
   @override
   void dispose() {
     phoneController.dispose();
@@ -199,12 +203,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Image.asset(
-              'assets/images/Blue Chat 4x.png',
-              width: 80,
-              height: 80,
-              fit: BoxFit.contain,
-            ),
+            _logo(120),
             const SizedBox(height: 25),
             _brandTitle(fontSize: 46),
             const SizedBox(height: 5),
@@ -222,7 +221,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
             ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 520),
               child: Text(
-                'Manage your learning platform from one secure place.',
+                "Manage Let's Speak with Surendra from one secure place.",
                 style: GoogleFonts.poppins(
                   color: heading,
                   fontSize: 16,
@@ -272,12 +271,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
   Widget _brandHeaderMobile() {
     return Row(
       children: [
-        Image.asset(
-          'assets/images/blue icon.png',
-          width: 58,
-          height: 58,
-          fit: BoxFit.contain,
-        ),
+        _logo(64),
         const SizedBox(width: 14),
         Expanded(
           child: Column(
@@ -348,7 +342,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
             ),
             const SizedBox(height: 7),
             Text(
-              "Sign in to manage your Let's Speak platform.",
+              "Sign in to manage Let's Speak with Surendra.",
               style: GoogleFonts.poppins(
                 color: body,
                 fontSize: 12.5,
@@ -457,7 +451,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
             const SizedBox(height: 16),
             Center(
               child: Text(
-                "Let's Speak  •  Learn  •  Speak  •  Grow",
+                "Let's Speak with Surendra  •  Learn  •  Speak  •  Grow",
                 style: GoogleFonts.poppins(
                   color: body.withValues(alpha: 0.78),
                   fontSize: 9.5,
@@ -559,29 +553,68 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
     );
   }
 
+  /// "Let's Speak" + "with Surendra" (teal, smaller) under it
   Widget _brandTitle({required double fontSize}) {
-    return Text.rich(
-      TextSpan(
-        children: [
-          TextSpan(
-            text: "Let's ",
-            style: GoogleFonts.poppins(
-              color: logoNavy,
-              fontSize: fontSize,
-              fontWeight: FontWeight.w800,
-              height: 1.05,
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          "Let's Speak",
+          style: GoogleFonts.poppins(
+            color: logoNavy,
+            fontSize: fontSize,
+            fontWeight: FontWeight.w800,
+            height: 1.05,
           ),
-          TextSpan(
-            text: 'Speak',
-            style: GoogleFonts.poppins(
-              color: logoNavy,
-              fontSize: fontSize,
-              fontWeight: FontWeight.w800,
-              height: 1.05,
-            ),
+        ),
+        Text(
+          'with Surendra',
+          style: GoogleFonts.poppins(
+            color: logoTeal,
+            fontSize: fontSize * 0.5,
+            fontWeight: FontWeight.w700,
+            height: 1.25,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Logo in a white rounded box (the picture has a white background)
+  Widget _logo(double size) {
+    return Container(
+      width: size,
+      height: size,
+      padding: EdgeInsets.all(size * 0.04),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(size * 0.24),
+        border: Border.all(color: border),
+        boxShadow: [
+          BoxShadow(
+            color: logoNavy.withValues(alpha: 0.10),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
           ),
         ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(size * 0.20),
+        child: Image.asset(
+          logoAsset,
+          fit: BoxFit.contain,
+          // if the file name / pubspec line is wrong → a clean icon instead of a crash
+          errorBuilder: (_, __, ___) => Container(
+            color: logoNavy,
+            alignment: Alignment.center,
+            child: Icon(
+              Icons.record_voice_over_rounded,
+              color: Colors.white,
+              size: size * 0.42,
+            ),
+          ),
+        ),
       ),
     );
   }

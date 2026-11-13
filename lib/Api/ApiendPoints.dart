@@ -9,6 +9,9 @@ class ApiEndpoints {
   // User Management
   static const String users = "$baseUrl/users";
   static const String updateAccess = "$baseUrl/update-access";
+  // 🎓 Promote: old stage → finished (material only), next stage → live class
+  static const String promote = "$baseUrl/admin/promote";
+  static const String promoteCandidates = "$baseUrl/admin/promote/candidates";
   static const String updateStudentStatus =
       "$baseUrl/admin/update-student-status";
 
