@@ -70,7 +70,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
       final response = await http.post(
         Uri.parse(ApiEndpoints.login),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'phone': phone, 'password': password}),
+        body: jsonEncode({'phone': phone, 'password': password, 'app': 'manager'}), // 👥 staff account
       );
 
       final data = jsonDecode(response.body);

@@ -23,7 +23,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter/services.dart';
 import 'package:livekit_client/livekit_client.dart' as lk;
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'package:lets_speake_manager/Api/ApiendPoints.dart';
 
@@ -59,6 +61,51 @@ Future<Map<String, dynamic>> _post(String path, Map<String, dynamic> body) async
 enum Priority { verbose, debug, info, warning, error }
 
 enum TrackType { audio, video, screenShare }
+
+// -------------------------------------------------------------------------
+// 🛟 Phone (Android): class keeps running with the screen off / other app open,
+// and pauses by itself during a phone or WhatsApp call (MainActivity.kt)
+// -------------------------------------------------------------------------
+bool get _isAndroid => !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
+class _Native {
+  static const MethodChannel _ch = MethodChannel('letsspeak/class_service');
+  static bool _on = false;
+
+  static Future<void> keepAlive(bool on) async {
+    if (!_isAndroid || on == _on) return;
+    _on = on;
+    try {
+      if (on) {
+        await _ch.invokeMethod('start', {
+          'title': "Let's Speak • Live class",
+          'text': 'The class is running. Tap to go back.',
+        });
+      } else {
+        await _ch.invokeMethod('stop');
+      }
+    } catch (e) {
+      debugPrint('Class background service: $e');
+    }
+  }
+
+  static Future<({bool inCall, int mode})> callState({required bool myMicOn}) async {
+    if (!_isAndroid) return (inCall: false, mode: -1);
+    try {
+      final m = await _ch.invokeMethod<Map<dynamic, dynamic>>('callState', {'micOn': myMicOn});
+      return (inCall: m?['phoneCall'] == true || m?['voipCall'] == true, mode: (m?['mode'] as int?) ?? -1);
+    } catch (_) {
+      return (inCall: false, mode: -1);
+    }
+  }
+
+  static Future<void> restoreMode() async {
+    if (!_isAndroid) return;
+    try {
+      await _ch.invokeMethod('restoreMode');
+    } catch (_) {}
+  }
+}
 
 class StreamVideoOptions {
   final Priority? logPriority;
@@ -260,7 +307,7 @@ class Call {
 
   Future<void> _applySound(lk.RemoteTrackPublication pub) async {
     try {
-      if (soundOn) {
+      if (soundOn && !_inCall) {
         await pub.enable();
       } else {
         await pub.disable();
@@ -389,6 +436,15 @@ class Call {
         roomOptions: const lk.RoomOptions(
           adaptiveStream: true,
           dynacast: true,
+          // 🎙 clear voice: echo cancel + noise cancel + auto volume + low-hum filter (fan / AC)
+          defaultAudioCaptureOptions: lk.AudioCaptureOptions(
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+            highPassFilter: true,
+            voiceIsolation: true,
+            typingNoiseDetection: true,
+          ),
           // 🎧 speech: silence is not sent (dtx) + protection against lost packets (red)
           //    🌐 web (Chrome): plain Opus — RED/DTX can make the voice silent in the browser
           defaultAudioPublishOptions: lk.AudioPublishOptions(
@@ -417,7 +473,7 @@ class Call {
           return;
         }
         // someone new turned the mic on while my sound is off → keep it off
-        if (event is lk.TrackSubscribedEvent && !soundOn && event.track is lk.RemoteAudioTrack) {
+        if (event is lk.TrackSubscribedEvent && (!soundOn || _inCall) && event.track is lk.RemoteAudioTrack) {
           _applySound(event.publication);
         }
         // 🌐 web: Chrome blocks sound until a tap → try to start it on every new voice
@@ -447,6 +503,8 @@ class Call {
           debugPrint('Mic start error: $e');
         }
       }
+      // 🔆 screen stays on + 🛟 keeps running with screen off + 📞 pauses on calls
+      _guardOn();
       _emitNow();
       return Result.success<void>();
     } catch (e) {
@@ -461,9 +519,98 @@ class Call {
   Future<Result<void>> leave() async {
     _left = true;
     await _closeRoom();
+    _guardOff();
     _status = CallStatus.disconnected;
     _emitNow();
     return Result.success<void>();
+  }
+
+  // -------------------------------------------------------------------
+  // 🛟 guard: screen on, background service, phone / WhatsApp calls
+  // -------------------------------------------------------------------
+  Timer? _callWatch;
+  bool _inCall = false;
+  bool _micBeforeCall = false;
+  bool _checkingCall = false;
+
+  /// true while this phone is on a phone / WhatsApp call
+  bool get inPhoneCall => _inCall;
+
+  void _guardOn() {
+    try {
+      WakelockPlus.enable();
+    } catch (_) {}
+    unawaited(_Native.keepAlive(true));
+    if (_isAndroid) {
+      _callWatch ??= Timer.periodic(const Duration(seconds: 2), (_) => _checkCall());
+    }
+  }
+
+  void _guardOff() {
+    _callWatch?.cancel();
+    _callWatch = null;
+    _inCall = false;
+    if (StreamVideo._active.isEmpty) {
+      try {
+        WakelockPlus.disable();
+      } catch (_) {}
+      unawaited(_Native.keepAlive(false));
+    }
+  }
+
+  Future<void> _checkCall() async {
+    final room = _room;
+    if (room == null || _checkingCall || _left) return;
+    _checkingCall = true;
+    try {
+      final me = room.localParticipant;
+      final micOn = me?.isMicrophoneEnabled() ?? false;
+      final st = await _Native.callState(myMicOn: micOn);
+      if (st.inCall && !_inCall) {
+        // 📞 call started → my mic off + class sound off on this phone
+        _inCall = true;
+        _micBeforeCall = micOn;
+        if (micOn) {
+          try {
+            await me?.setMicrophoneEnabled(false);
+          } catch (_) {}
+        }
+        for (final p in room.remoteParticipants.values) {
+          for (final pub in p.audioTrackPublications) {
+            try {
+              await pub.disable();
+            } catch (_) {}
+          }
+        }
+        _emitNow();
+      } else if (!st.inCall && _inCall) {
+        // 📞 call ended → sound + mic back
+        _inCall = false;
+        await _Native.restoreMode();
+        try {
+          await room.setSpeakerOn(true);
+        } catch (_) {}
+        for (final p in room.remoteParticipants.values) {
+          for (final pub in p.audioTrackPublications) {
+            await _applySound(pub); // respects "sound off for me"
+          }
+        }
+        if (_micBeforeCall) {
+          try {
+            await room.localParticipant?.setMicrophoneEnabled(true);
+          } catch (_) {}
+        }
+        _micBeforeCall = false;
+        _emitNow();
+      } else if (!st.inCall && st.mode == 0) {
+        await _Native.restoreMode();
+        try {
+          await room.setSpeakerOn(true);
+        } catch (_) {}
+      }
+    } finally {
+      _checkingCall = false;
+    }
   }
 
   Future<void> _closeRoom() async {
