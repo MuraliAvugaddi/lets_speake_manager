@@ -50,15 +50,14 @@ class MainActivity : FlutterActivity() {
 
     /**
      * 📞 Is the phone in a call?
-     *  phoneCall: normal SIM call (ringing / talking)
+     *  phoneCall: normal SIM call — only once it is ANSWERED (ringing → class keeps going,
+     *             so the person can say "wait, I have a call", mute and then pick up)
      *  voipCall : WhatsApp / other app call (another app is using the mic for a call)
      */
     private fun callState(myMicOn: Boolean): Map<String, Any> {
         val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         val mode = am.mode
-        val phoneCall = mode == AudioManager.MODE_RINGTONE ||
-            mode == AudioManager.MODE_IN_CALL ||
-            (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && mode == AudioManager.MODE_CALL_SCREENING)
+        val phoneCall = mode == AudioManager.MODE_IN_CALL
         var voipCall = false
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             try {
