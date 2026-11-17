@@ -25,6 +25,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter/services.dart';
 import 'package:livekit_client/livekit_client.dart' as lk;
+import 'package:flutter_webrtc/flutter_webrtc.dart' as rtc;
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'package:lets_speake_manager/Api/ApiendPoints.dart';
@@ -476,6 +477,11 @@ class Call {
         if (event is lk.TrackSubscribedEvent && (!soundOn || _inCall) && event.track is lk.RemoteAudioTrack) {
           _applySound(event.publication);
         }
+        // 🤫 noise gate: a student's voice only plays fully while they really speak
+        if (event is lk.TrackSubscribedEvent && event.track is lk.RemoteAudioTrack) {
+          unawaited(_gateVolume(event.participant, event.track));
+        }
+        if (event is lk.ActiveSpeakersChangedEvent) _onSpeakers(event.speakers);
         // 🌐 web: Chrome blocks sound until a tap → try to start it on every new voice
         if (kIsWeb && event is lk.TrackSubscribedEvent) _webStartAudio(room);
         if (event is lk.RoomReconnectingEvent) _status = CallStatus.reconnecting;
@@ -546,7 +552,68 @@ class Call {
     }
   }
 
+  // ---------------------------------------------------------------------
+  // 🤫 NOISE GATE: an open mic that is not speaking only sends room noise.
+  // LiveKit tells us who really speaks → only they play fully, others ~silent.
+  // Trainer / admin / Surendra Sir are always heard fully.
+  // ---------------------------------------------------------------------
+  static const double _gateFloor = 0.08;
+  static const Duration _gateHold = Duration(milliseconds: 1500);
+  final Set<String> _gateOpen = <String>{};
+  final Map<String, Timer> _gateTimers = <String, Timer>{};
+
+  bool _alwaysHeard(lk.Participant p) => p.identity.startsWith('observer_') || _isStaffMeta(p.metadata);
+
+  Future<void> _gateVolume(lk.Participant p, lk.Track track) async {
+    if (kIsWeb) return;
+    try {
+      final v = (_alwaysHeard(p) || _gateOpen.contains(p.identity)) ? 1.0 : _gateFloor;
+      await rtc.Helper.setVolume(v, track.mediaStreamTrack);
+    } catch (_) {}
+  }
+
+  void _regain(String identity) {
+    final room = _room;
+    if (room == null) return;
+    for (final p in room.remoteParticipants.values) {
+      if (p.identity != identity) continue;
+      for (final pub in p.audioTrackPublications) {
+        final t = pub.track;
+        if (t != null) unawaited(_gateVolume(p, t));
+      }
+      return;
+    }
+  }
+
+  void _onSpeakers(List<lk.Participant> speakers) {
+    if (_room == null || kIsWeb) return;
+    final now = <String>{
+      for (final p in speakers)
+        if (p is lk.RemoteParticipant && !_alwaysHeard(p)) p.identity,
+    };
+    for (final id in now) {
+      _gateTimers.remove(id)?.cancel();
+      if (_gateOpen.add(id)) _regain(id);
+    }
+    for (final id in _gateOpen.toList()) {
+      if (now.contains(id) || _gateTimers.containsKey(id)) continue;
+      _gateTimers[id] = Timer(_gateHold, () {
+        _gateTimers.remove(id);
+        if (_gateOpen.remove(id)) _regain(id);
+      });
+    }
+  }
+
+  void _clearGate() {
+    for (final t in _gateTimers.values) {
+      t.cancel();
+    }
+    _gateTimers.clear();
+    _gateOpen.clear();
+  }
+
   void _guardOff() {
+    _clearGate();
     _callWatch?.cancel();
     _callWatch = null;
     _inCall = false;

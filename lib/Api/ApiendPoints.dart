@@ -1,6 +1,6 @@
 class ApiEndpoints {
-  // static const String baseUrl = "https://api.letsspeakglobal.com/api";
-  static const String baseUrl = "http://10.13.71.179:5001/api";
+  static const String baseUrl = "https://api.letsspeakglobal.com/api";
+  // static const String baseUrl = "http://10.13.71.179:5001/api";
 
   // Auth Endpoints
   static const String login = "$baseUrl/login";
