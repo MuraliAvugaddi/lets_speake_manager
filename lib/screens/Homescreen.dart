@@ -19,6 +19,8 @@ import 'package:lets_speake_manager/screens/AdminFeeVerificationScreen.dart';
 import 'package:lets_speake_manager/screens/AdminFeesManageScreen.dart';
 
 import 'package:lets_speake_manager/screens/AdminSectionMergeScreen.dart';
+import 'package:lets_speake_manager/screens/AdminHindiStageMergeScreen.dart';
+import 'package:lets_speake_manager/screens/AdminMaterialScreen.dart';
 
 import 'package:lets_speake_manager/screens/AdminTeacherAttendanceScreen.dart';
 
@@ -129,6 +131,24 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
       color: teal,
     ),
 
+    // 🔀 HINDI STAGE MERGE (Stage 2 → Stage 1 … all 7 at a time)
+    _AdminModule(
+      index: 18,
+      title: 'Hindi Stage Merge',
+      subtitle: 'Merge Hindi stages for a day',
+      icon: Icons.call_merge_rounded,
+      color: Color(0xFF7A5AF8),
+    ),
+
+    // 📚 STUDY MATERIAL (PDF per stage day → saved offline on phones)
+    _AdminModule(
+      index: 19,
+      title: 'Study Material',
+      subtitle: 'Upload / update stage PDFs',
+      icon: Icons.picture_as_pdf_rounded,
+      color: Color(0xFF0F5A87),
+    ),
+
     // FEE VERIFICATION
     _AdminModule(
       index: 7,
@@ -225,7 +245,7 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
   // ============================================================
 
   static const int pageCount =
-      18; // 12 = App Update, 13 = Converted Students, 14 = Trainer Tests, 15 = Dropouts, 16 = Watch Live Classes, 17 = Promote Students
+      20; // 19 = Study Material, 12 = App Update, 13 = Converted Students, 14 = Trainer Tests, 15 = Dropouts, 16 = Watch Live Classes, 17 = Promote Students, 18 = Hindi Stage Merge
 
   final List<Widget?> _pages = List<Widget?>.filled(pageCount, null);
 
@@ -354,6 +374,14 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
       // 🎓 promote a class to the next stage
       case 17:
         return const AdminPromoteScreen(embedded: true);
+
+      // 🔀 Hindi stage merge
+      case 18:
+        return const AdminHindiStageMergeScreen();
+
+      // 📚 study material PDFs
+      case 19:
+        return const AdminMaterialScreen();
 
       default:
         return const SizedBox.shrink();

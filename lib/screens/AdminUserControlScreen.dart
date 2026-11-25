@@ -30,7 +30,8 @@ class AdminUserControlScreen extends StatefulWidget {
   State<AdminUserControlScreen> createState() => _AdminUserControlScreenState();
 }
 
-class _AdminUserControlScreenState extends State<AdminUserControlScreen> with WidgetsBindingObserver {
+class _AdminUserControlScreenState extends State<AdminUserControlScreen>
+    with WidgetsBindingObserver {
   // ---------------- palette ----------------
   static const Color textColor = Color(0xFF173A52);
   static const Color secondaryText = Color(0xFF6B8496);
@@ -47,14 +48,24 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
   static const Color offlineColor = Color(0xFFC68B00);
 
   static const List<String> sections = ['A', 'B', 'C', 'D', 'E'];
-  static const List<String> stageKeys = ['stage1', 'stage2', 'stage3', 'stage4', 'stage5', 'stage6', 'stage7'];
+  static const List<String> stageKeys = [
+    'stage1',
+    'stage2',
+    'stage3',
+    'stage4',
+    'stage5',
+    'stage6',
+    'stage7',
+  ];
 
   // find it if the Students page already made it, otherwise make it here
   // (after logout + login this screen can open before the Students page)
-  final AdminController adminController =
-      Get.isRegistered<AdminController>() ? Get.find<AdminController>() : Get.put(AdminController());
+  final AdminController adminController = Get.isRegistered<AdminController>()
+      ? Get.find<AdminController>()
+      : Get.put(AdminController());
 
-  late Map<String, dynamic> englishAccess; // CURRENT stages → live class, attendance, tests
+  late Map<String, dynamic>
+  englishAccess; // CURRENT stages → live class, attendance, tests
   late Map<String, dynamic> hindiAccess;
   // ✅ FINISHED stages (promoted / dropout) → study material only
   Map<String, dynamic> englishDone = {};
@@ -85,7 +96,8 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
   Timer? _liveDebounce;
   Map<String, dynamic>? _pendingRemote; // arrived while the admin was editing
   String _pendingWhat = '';
-  int _panelsOpen = 0; // a sheet / dialog is open → don't change things under it
+  int _panelsOpen =
+      0; // a sheet / dialog is open → don't change things under it
   bool _live = false; // socket connected
   bool _fetchingUser = false;
 
@@ -98,18 +110,23 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
     WidgetsBinding.instance.addObserver(this);
     _initializeUserData();
     _connectSocket();
-    _poll = Timer.periodic(const Duration(seconds: 30), (_) => _refreshStudent());
+    _poll = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _refreshStudent(),
+    );
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _refreshStudent(); // back to the app → catch up
+    if (state == AppLifecycleState.resumed)
+      _refreshStudent(); // back to the app → catch up
   }
 
   @override
   void didUpdateWidget(covariant AdminUserControlScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.user['_id'] != widget.user['_id'] || oldWidget.user['id'] != widget.user['id']) {
+    if (oldWidget.user['_id'] != widget.user['_id'] ||
+        oldWidget.user['id'] != widget.user['id']) {
       _initializeUserData();
     }
   }
@@ -128,7 +145,8 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
   }
 
   String get _userId => (widget.user['_id'] ?? widget.user['id']).toString();
-  String get _studentName => (_user['name'] ?? widget.user['name'] ?? 'Student').toString();
+  String get _studentName =>
+      (_user['name'] ?? widget.user['name'] ?? 'Student').toString();
   String get _firstName {
     final n = _studentName.trim();
     return n.isEmpty ? 'this student' : n.split(' ').first;
@@ -139,14 +157,26 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
     _pendingRemote = null;
     _readFrom(_user);
     // open the Hindi tab when the student only learns Hindi
-    showHindi = !_anyOn(englishAccess) && _anyOn(hindiAccess);
+    // (or is new, has no stages yet and chose Hindi at sign-up)
+    showHindi =
+        (_anyOn(hindiAccess) && !_anyOn(englishAccess)) ||
+        (!_anyOn(englishAccess) &&
+            !_anyOn(hindiAccess) &&
+            _chosenLanguage == 'Hindi');
 
     _fetchStudentDeepAnalytics();
     _fetchClassLoad();
   }
 
-  Map<String, dynamic> _copy(dynamic m) =>
-      m is Map ? Map<String, dynamic>.from(jsonDecode(jsonEncode(m))) : <String, dynamic>{};
+  /// 🌐 Course the student chose at sign-up ("English" / "Hindi")
+  String get _chosenLanguage =>
+      (_user['language'] ?? '').toString().toLowerCase() == 'hindi'
+      ? 'Hindi'
+      : 'English';
+
+  Map<String, dynamic> _copy(dynamic m) => m is Map
+      ? Map<String, dynamic>.from(jsonDecode(jsonEncode(m)))
+      : <String, dynamic>{};
 
   /// Puts a server copy of the student into the editable fields.
   void _readFrom(Map<String, dynamic> u) {
@@ -176,16 +206,16 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
 
   // keys always in the same order → two equal settings give the same text
   String _snapshot() => jsonEncode({
-        'e': {for (final k in stageKeys) k: englishAccess[k] == true},
-        'h': {for (final k in stageKeys) k: hindiAccess[k] == true},
-        'ed': {for (final k in stageKeys) k: englishDone[k] == true},
-        'hd': {for (final k in stageKeys) k: hindiDone[k] == true},
-        'm': selectedMode,
-        's': selectedSection,
-        'b': selectedBatch,
-        'eb': {for (final k in stageKeys) k: englishBatch[k] ?? ''},
-        'hb': {for (final k in stageKeys) k: hindiBatch[k] ?? ''},
-      });
+    'e': {for (final k in stageKeys) k: englishAccess[k] == true},
+    'h': {for (final k in stageKeys) k: hindiAccess[k] == true},
+    'ed': {for (final k in stageKeys) k: englishDone[k] == true},
+    'hd': {for (final k in stageKeys) k: hindiDone[k] == true},
+    'm': selectedMode,
+    's': selectedSection,
+    'b': selectedBatch,
+    'eb': {for (final k in stageKeys) k: englishBatch[k] ?? ''},
+    'hb': {for (final k in stageKeys) k: hindiBatch[k] ?? ''},
+  });
 
   /// Same snapshot, but for a raw server copy (without touching the screen)
   String _snapshotOf(Map u) {
@@ -228,14 +258,21 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
   }
 
   /// Timings already used by OTHER enabled stages → "English Stage 1"
-  Map<String, String> _takenTimings({required bool isEnglish, required String key}) {
+  Map<String, String> _takenTimings({
+    required bool isEnglish,
+    required String key,
+  }) {
     final taken = <String, String>{};
     void scan(bool eng, Map<String, dynamic> access) {
       for (final k in stageKeys) {
         if (eng == isEnglish && k == key) continue;
         if (access[k] != true) continue;
         final t = _stageTiming(eng, k);
-        if (t.isNotEmpty) taken.putIfAbsent(t, () => '${eng ? 'English' : 'Hindi'} Stage ${_stageNo(k)}');
+        if (t.isNotEmpty)
+          taken.putIfAbsent(
+            t,
+            () => '${eng ? 'English' : 'Hindi'} Stage ${_stageNo(k)}',
+          );
       }
     }
 
@@ -256,20 +293,32 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
     return cur;
   }
 
-  int _num(dynamic v) => (v is num) ? v.toInt() : int.tryParse('${v ?? ''}') ?? 0;
+  int _num(dynamic v) =>
+      (v is num) ? v.toInt() : int.tryParse('${v ?? ''}') ?? 0;
 
   /// Load table for one stage in the student's current mode (other students only)
   Map? _stageLoad(bool isEnglish, String key) {
-    final v = _dig(_load.value, [_isOnline ? 'online' : 'offline', isEnglish ? 'English' : 'Hindi', key]);
+    final v = _dig(_load.value, [
+      _isOnline ? 'online' : 'offline',
+      isEnglish ? 'English' : 'Hindi',
+      key,
+    ]);
     return v is Map ? v : null;
   }
 
-  int _sectionCount(Map? load, String sec) => _num(_dig(load, ['sections', sec]));
-  int _timingCount(Map? load, String label) => _num(_dig(load, ['timings', label]));
-  int _classCount(Map? load, String sec, String label) => _num(_dig(load, ['matrix', sec, label]));
+  int _sectionCount(Map? load, String sec) =>
+      _num(_dig(load, ['sections', sec]));
+  int _timingCount(Map? load, String label) =>
+      _num(_dig(load, ['timings', label]));
+  int _classCount(Map? load, String sec, String label) =>
+      _num(_dig(load, ['matrix', sec, label]));
 
   String? _trainerFor(bool isEnglish, String key, String sec) {
-    final t = _dig(_load.value, ['trainers', isEnglish ? 'English' : 'Hindi', key]);
+    final t = _dig(_load.value, [
+      'trainers',
+      isEnglish ? 'English' : 'Hindi',
+      key,
+    ]);
     if (t is! Map) return null;
     final v = t[sec] ?? t['all'];
     return v == null ? null : v.toString();
@@ -282,7 +331,8 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
     try {
       // Socket.IO connects to the server root, not ".../api"
       final uri = Uri.parse(ApiEndpoints.baseUrl);
-      final host = "${uri.scheme}://${uri.host}${uri.hasPort ? ':${uri.port}' : ''}";
+      final host =
+          "${uri.scheme}://${uri.host}${uri.hasPort ? ':${uri.port}' : ''}";
       final s = IO.io(
         host,
         IO.OptionBuilder()
@@ -315,7 +365,12 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
     if (!mounted || data is! Map) return;
     if ((data['userId'] ?? '').toString() != _userId) return; // another student
     if (data['deleted'] == true) {
-      _snack('Student deleted', '$_firstName\'s account was deleted.', red, icon: Icons.person_off_rounded);
+      _snack(
+        'Student deleted',
+        '$_firstName\'s account was deleted.',
+        red,
+        icon: Icons.person_off_rounded,
+      );
       return;
     }
     final u = data['user'];
@@ -334,7 +389,9 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
     _fetchingUser = true;
     try {
       final res = await http.get(
-        Uri.parse("${ApiEndpoints.baseUrl}/admin/student/$_userId?_t=${DateTime.now().millisecondsSinceEpoch}"),
+        Uri.parse(
+          "${ApiEndpoints.baseUrl}/admin/student/$_userId?_t=${DateTime.now().millisecondsSinceEpoch}",
+        ),
         headers: ApiHeaders.auth(),
       );
       if (!mounted) return;
@@ -344,7 +401,9 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
         if (u is Map) _applyRemote(_copy(u));
       } else if (res.statusCode == 404) {
         // older backend without this route → use the Students list (it refreshes itself)
-        final i = adminController.usersList.indexWhere((x) => (x['_id'] ?? x['id']).toString() == _userId);
+        final i = adminController.usersList.indexWhere(
+          (x) => (x['_id'] ?? x['id']).toString() == _userId,
+        );
         if (i != -1) _applyRemote(_copy(adminController.usersList[i]));
       }
     } catch (e) {
@@ -423,28 +482,38 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
   /// "Changed English Stage 2 timing to 7:00 PM – 8:00 PM"
   String _describeChange(Map a, Map b) {
     final out = <String>[];
-    final ba = BatchSlots.labelOf(a['batchTime']), bb = BatchSlots.labelOf(b['batchTime']);
+    final ba = BatchSlots.labelOf(a['batchTime']),
+        bb = BatchSlots.labelOf(b['batchTime']);
     if (ba != bb) out.add('Default timing → ${bb.isEmpty ? 'none' : bb}');
     for (final isEnglish in [true, false]) {
       final field = isEnglish ? 'englishBatch' : 'hindiBatch';
       final ma = _readBatchMap(a[field]), mb = _readBatchMap(b[field]);
       for (final k in stageKeys) {
         if (ma[k] != mb[k]) {
-          out.add('${isEnglish ? 'English' : 'Hindi'} ${_prettyStage(k)} → ${mb[k]!.isEmpty ? 'default timing' : mb[k]}');
+          out.add(
+            '${isEnglish ? 'English' : 'Hindi'} ${_prettyStage(k)} → ${mb[k]!.isEmpty ? 'default timing' : mb[k]}',
+          );
         }
       }
       final aa = _readAccess(a[isEnglish ? 'englishAccess' : 'hindiAccess']);
       final ab = _readAccess(b[isEnglish ? 'englishAccess' : 'hindiAccess']);
       for (final k in stageKeys) {
-        if (aa[k] != ab[k]) out.add('${isEnglish ? 'English' : 'Hindi'} ${_prettyStage(k)} ${ab[k] == true ? 'turned on' : 'turned off'}');
+        if (aa[k] != ab[k])
+          out.add(
+            '${isEnglish ? 'English' : 'Hindi'} ${_prettyStage(k)} ${ab[k] == true ? 'turned on' : 'turned off'}',
+          );
       }
     }
-    final mA = (a['mode'] ?? '').toString().toLowerCase(), mB = (b['mode'] ?? '').toString().toLowerCase();
+    final mA = (a['mode'] ?? '').toString().toLowerCase(),
+        mB = (b['mode'] ?? '').toString().toLowerCase();
     if (mA != mB) out.add('Mode → ${mB == 'online' ? 'Online' : 'Offline'}');
-    final sA = (a['onlineSection'] ?? '').toString().toUpperCase(), sB = (b['onlineSection'] ?? '').toString().toUpperCase();
-    if (sA != sB) out.add(sections.contains(sB) ? 'Section → $sB' : 'Section removed');
+    final sA = (a['onlineSection'] ?? '').toString().toUpperCase(),
+        sB = (b['onlineSection'] ?? '').toString().toUpperCase();
+    if (sA != sB)
+      out.add(sections.contains(sB) ? 'Section → $sB' : 'Section removed');
     if (out.isEmpty) return 'Settings were updated';
-    if (out.length > 2) return '${out.take(2).join(' • ')} • +${out.length - 2} more';
+    if (out.length > 2)
+      return '${out.take(2).join(' • ')} • +${out.length - 2} more';
     return out.join(' • ');
   }
 
@@ -488,13 +557,31 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('$_firstName just changed their settings',
-                        style: GoogleFonts.poppins(color: textColor, fontSize: 12.5, fontWeight: FontWeight.w700)),
+                    Text(
+                      '$_firstName just changed their settings',
+                      style: GoogleFonts.poppins(
+                        color: textColor,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                     const SizedBox(height: 2),
-                    Text(_pendingWhat, style: GoogleFonts.poppins(color: amberText, fontSize: 11.5, fontWeight: FontWeight.w600)),
+                    Text(
+                      _pendingWhat,
+                      style: GoogleFonts.poppins(
+                        color: amberText,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     const SizedBox(height: 2),
-                    Text('Your unsaved edits are kept. Load the latest to see their change.',
-                        style: GoogleFonts.poppins(color: secondaryText, fontSize: 10.5)),
+                    Text(
+                      'Your unsaved edits are kept. Load the latest to see their change.',
+                      style: GoogleFonts.poppins(
+                        color: secondaryText,
+                        fontSize: 10.5,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -506,19 +593,37 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
             children: [
               TextButton(
                 onPressed: _keepMine,
-                child: Text('Keep my edits', style: GoogleFonts.poppins(color: secondaryText, fontSize: 12, fontWeight: FontWeight.w600)),
+                child: Text(
+                  'Keep my edits',
+                  style: GoogleFonts.poppins(
+                    color: secondaryText,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
               const SizedBox(width: 6),
               ElevatedButton.icon(
                 onPressed: _loadPending,
                 icon: const Icon(Icons.refresh_rounded, size: 16),
-                label: Text('Load latest', style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700)),
+                label: Text(
+                  'Load latest',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: navy,
                   foregroundColor: Colors.white,
                   elevation: 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
               ),
             ],
@@ -558,8 +663,14 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
     if (mounted) setState(() {});
     try {
       final responses = await Future.wait([
-        http.get(Uri.parse("${ApiEndpoints.userAttendance}?userId=$_userId"), headers: ApiHeaders.auth()),
-        http.get(Uri.parse("${ApiEndpoints.userTestResults}?userId=$_userId"), headers: ApiHeaders.auth()),
+        http.get(
+          Uri.parse("${ApiEndpoints.userAttendance}?userId=$_userId"),
+          headers: ApiHeaders.auth(),
+        ),
+        http.get(
+          Uri.parse("${ApiEndpoints.userTestResults}?userId=$_userId"),
+          headers: ApiHeaders.auth(),
+        ),
       ]);
       if (responses[0].statusCode == 200) {
         studentAttendanceLog = jsonDecode(responses[0].body)['records'] ?? [];
@@ -576,14 +687,18 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
   }
 
   // ---------------- analytics getters ----------------
-  int get presentSessions => studentAttendanceLog.where((r) => r['status'] == 'Present').length;
-  int get partialLateSessions =>
-      studentAttendanceLog.where((r) => r['status'] == 'Partial' || r['status'] == 'Late').length;
+  int get presentSessions =>
+      studentAttendanceLog.where((r) => r['status'] == 'Present').length;
+  int get partialLateSessions => studentAttendanceLog
+      .where((r) => r['status'] == 'Partial' || r['status'] == 'Late')
+      .length;
   int get totalLoggedSessions => studentAttendanceLog.length;
 
   double get attendanceRate {
     if (totalLoggedSessions == 0) return 0.0;
-    return ((presentSessions + (partialLateSessions * 0.5)) / totalLoggedSessions) * 100;
+    return ((presentSessions + (partialLateSessions * 0.5)) /
+            totalLoggedSessions) *
+        100;
   }
 
   int get totalMinutesSpent {
@@ -621,7 +736,12 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
   // =========================================================
   // ACTIONS
   // =========================================================
-  void _snack(String title, String msg, Color color, {IconData icon = Icons.info_outline_rounded}) {
+  void _snack(
+    String title,
+    String msg,
+    Color color, {
+    IconData icon = Icons.info_outline_rounded,
+  }) {
     Get.snackbar(
       title,
       msg,
@@ -639,19 +759,41 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
       final leave = await Get.dialog<bool>(
         AlertDialog(
           backgroundColor: cardBg,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          title: Text('Discard changes?',
-              style: GoogleFonts.poppins(color: textColor, fontWeight: FontWeight.w700, fontSize: 16)),
-          content: Text("You changed $_firstName's settings but didn't save them.",
-              style: GoogleFonts.poppins(color: secondaryText, fontSize: 12.5)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          title: Text(
+            'Discard changes?',
+            style: GoogleFonts.poppins(
+              color: textColor,
+              fontWeight: FontWeight.w700,
+              fontSize: 16,
+            ),
+          ),
+          content: Text(
+            "You changed $_firstName's settings but didn't save them.",
+            style: GoogleFonts.poppins(color: secondaryText, fontSize: 12.5),
+          ),
           actions: [
             TextButton(
               onPressed: () => Get.back(result: false),
-              child: Text('Keep editing', style: GoogleFonts.poppins(color: secondaryText, fontWeight: FontWeight.w600)),
+              child: Text(
+                'Keep editing',
+                style: GoogleFonts.poppins(
+                  color: secondaryText,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
             TextButton(
               onPressed: () => Get.back(result: true),
-              child: Text('Discard', style: GoogleFonts.poppins(color: red, fontWeight: FontWeight.w700)),
+              child: Text(
+                'Discard',
+                style: GoogleFonts.poppins(
+                  color: red,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ),
           ],
         ),
@@ -694,15 +836,22 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
     final hasEnglish = _anyOn(englishAccess);
 
     if (_isOnline && hasEnglish && !_hasSection) {
-      _snack('Choose a section', 'Online English classes need a section (A–E).', amberText);
+      _snack(
+        'Choose a section',
+        'Online English classes need a section (A–E).',
+        amberText,
+      );
       return;
     }
     for (final isEnglish in [true, false]) {
       final access = isEnglish ? englishAccess : hindiAccess;
       for (final k in stageKeys) {
         if (access[k] == true && _stageTiming(isEnglish, k).isEmpty) {
-          _snack('Timing missing', 'Set a timing for ${isEnglish ? 'English' : 'Hindi'} Stage ${_stageNo(k)}.',
-              amberText);
+          _snack(
+            'Timing missing',
+            'Set a timing for ${isEnglish ? 'English' : 'Hindi'} Stage ${_stageNo(k)}.',
+            amberText,
+          );
           return;
         }
       }
@@ -743,9 +892,13 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
 
       if (response.statusCode == 200) {
         // keep the cached list in sync so other screens show the new values
-        final idx = adminController.usersList.indexWhere((u) => (u['_id'] ?? u['id']).toString() == _userId);
+        final idx = adminController.usersList.indexWhere(
+          (u) => (u['_id'] ?? u['id']).toString() == _userId,
+        );
         if (idx != -1) {
-          final updated = Map<String, dynamic>.from(adminController.usersList[idx]);
+          final updated = Map<String, dynamic>.from(
+            adminController.usersList[idx],
+          );
           updated['batchTime'] = selectedBatch;
           updated['englishBatch'] = Map<String, String>.from(englishBatch);
           updated['hindiBatch'] = Map<String, String>.from(hindiBatch);
@@ -774,20 +927,31 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
             'feeStatus': selectedFeeStatus,
           };
         });
-        _snack("Saved", "$_firstName's classes are updated.", green, icon: Icons.check_circle_rounded);
+        _snack(
+          "Saved",
+          "$_firstName's classes are updated.",
+          green,
+          icon: Icons.check_circle_rounded,
+        );
         _fetchClassLoad();
       } else {
         String msg = "Could not save changes (${response.statusCode}).";
         try {
           final body = jsonDecode(response.body);
-          if (body is Map && body['message'] != null) msg = body['message'].toString();
+          if (body is Map && body['message'] != null)
+            msg = body['message'].toString();
         } catch (_) {}
         _snack("Not saved", msg, red, icon: Icons.error_outline_rounded);
       }
     } on AccessSaveException catch (e) {
       _snack("Not saved", e.message, red, icon: Icons.error_outline_rounded);
     } catch (e) {
-      _snack("Not saved", "Connection error: $e", red, icon: Icons.error_outline_rounded);
+      _snack(
+        "Not saved",
+        "Connection error: $e",
+        red,
+        icon: Icons.error_outline_rounded,
+      );
     } finally {
       if (mounted) setState(() => isSaving = false);
     }
@@ -802,7 +966,8 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
     void closed() {
       if (_panelsOpen > 0) _panelsOpen--;
       // a live change came in while the sheet was open and the admin changed nothing → show it now
-      if (mounted && _panelsOpen == 0 && _pendingRemote != null && !_dirty) _loadPending();
+      if (mounted && _panelsOpen == 0 && _pendingRemote != null && !_dirty)
+        _loadPending();
     }
 
     if (size.width >= 700) {
@@ -811,9 +976,14 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
           backgroundColor: cardBg,
           surfaceTintColor: Colors.transparent,
           insetPadding: const EdgeInsets.all(24),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+          ),
           child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: 580, maxHeight: size.height * .88),
+            constraints: BoxConstraints(
+              maxWidth: 580,
+              maxHeight: size.height * .88,
+            ),
             child: Builder(builder: builder),
           ),
         ),
@@ -833,7 +1003,11 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
     }
   }
 
-  Widget _panelHeader({required IconData icon, required String title, required String subtitle}) {
+  Widget _panelHeader({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(18, 14, 10, 6),
       child: Column(
@@ -843,14 +1017,20 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
               width: 38,
               height: 4,
               margin: const EdgeInsets.only(bottom: 12),
-              decoration: BoxDecoration(color: borderColor, borderRadius: BorderRadius.circular(4)),
+              decoration: BoxDecoration(
+                color: borderColor,
+                borderRadius: BorderRadius.circular(4),
+              ),
             ),
           Row(
             children: [
               Container(
                 width: 40,
                 height: 40,
-                decoration: BoxDecoration(color: blue.withOpacity(.10), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(
+                  color: blue.withOpacity(.10),
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: Icon(icon, color: blue, size: 20),
               ),
               const SizedBox(width: 11),
@@ -858,9 +1038,21 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title,
-                        style: GoogleFonts.poppins(color: textColor, fontSize: 15.5, fontWeight: FontWeight.w700)),
-                    Text(subtitle, style: GoogleFonts.poppins(color: secondaryText, fontSize: 10.5)),
+                    Text(
+                      title,
+                      style: GoogleFonts.poppins(
+                        color: textColor,
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      subtitle,
+                      style: GoogleFonts.poppins(
+                        color: secondaryText,
+                        fontSize: 10.5,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -884,12 +1076,29 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
             width: 20,
             height: 20,
             alignment: Alignment.center,
-            decoration: const BoxDecoration(color: navy, shape: BoxShape.circle),
-            child: Text(n, style: GoogleFonts.poppins(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)),
+            decoration: const BoxDecoration(
+              color: navy,
+              shape: BoxShape.circle,
+            ),
+            child: Text(
+              n,
+              style: GoogleFonts.poppins(
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(text, style: GoogleFonts.poppins(color: textColor, fontSize: 12.5, fontWeight: FontWeight.w700)),
+            child: Text(
+              text,
+              style: GoogleFonts.poppins(
+                color: textColor,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
           if (trailing != null) trailing,
         ],
@@ -898,17 +1107,27 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
   }
 
   Widget _fewestBadge() => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(color: green.withOpacity(.12), borderRadius: BorderRadius.circular(6)),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.trending_down_rounded, size: 11, color: green),
-            const SizedBox(width: 2),
-            Text('Fewest', style: GoogleFonts.poppins(color: green, fontSize: 8.5, fontWeight: FontWeight.w800)),
-          ],
+    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+    decoration: BoxDecoration(
+      color: green.withOpacity(.12),
+      borderRadius: BorderRadius.circular(6),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(Icons.trending_down_rounded, size: 11, color: green),
+        const SizedBox(width: 2),
+        Text(
+          'Fewest',
+          style: GoogleFonts.poppins(
+            color: green,
+            fontSize: 8.5,
+            fontWeight: FontWeight.w800,
+          ),
         ),
-      );
+      ],
+    ),
+  );
 
   // =========================================================
   // STAGE SHEET — choose section (online English) + timing
@@ -920,83 +1139,134 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
     final needsSection = _needsSection(isEnglish);
     final taken = _takenTimings(isEnglish: isEnglish, key: key);
     final title = '${isEnglish ? 'English' : 'Hindi'} Stage ${_stageNo(key)}';
-    final otherEnglishOn = englishAccess.entries.any((e) => e.key != key && e.value == true);
+    final otherEnglishOn = englishAccess.entries.any(
+      (e) => e.key != key && e.value == true,
+    );
 
     String tempSection = _hasSection ? selectedSection : '';
-    String tempTiming = wasEnabled ? _stageTiming(isEnglish, key) : (batchMap[key] ?? '');
-    if (tempTiming.isEmpty && !taken.containsKey(selectedBatch)) tempTiming = selectedBatch; // suggest signup timing
+    String tempTiming = wasEnabled
+        ? _stageTiming(isEnglish, key)
+        : (batchMap[key] ?? '');
+    if (tempTiming.isEmpty && !taken.containsKey(selectedBatch))
+      tempTiming = selectedBatch; // suggest signup timing
     if (taken.containsKey(tempTiming)) tempTiming = '';
 
-    _showPanel((ctx) => StatefulBuilder(
-          builder: (ctx, setSheet) => ValueListenableBuilder<Map<String, dynamic>?>(
-            valueListenable: _load,
-            builder: (ctx, data, _) {
-              final load = _stageLoad(isEnglish, key);
-              final hasLoad = load != null;
+    _showPanel(
+      (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => ValueListenableBuilder<Map<String, dynamic>?>(
+          valueListenable: _load,
+          builder: (ctx, data, _) {
+            final load = _stageLoad(isEnglish, key);
+            final hasLoad = load != null;
 
-              // ---- sections ----
-              final secCounts = {for (final s in sections) s: _sectionCount(load, s)};
-              final secMin = secCounts.values.isEmpty ? 0 : secCounts.values.reduce((a, b) => a < b ? a : b);
-              final secMax = secCounts.values.isEmpty ? 0 : secCounts.values.reduce((a, b) => a > b ? a : b);
-              final fewestSection =
-                  hasLoad && secMax > secMin ? sections.firstWhere((s) => secCounts[s] == secMin) : null;
+            // ---- sections ----
+            final secCounts = {
+              for (final s in sections) s: _sectionCount(load, s),
+            };
+            final secMin = secCounts.values.isEmpty
+                ? 0
+                : secCounts.values.reduce((a, b) => a < b ? a : b);
+            final secMax = secCounts.values.isEmpty
+                ? 0
+                : secCounts.values.reduce((a, b) => a > b ? a : b);
+            final fewestSection = hasLoad && secMax > secMin
+                ? sections.firstWhere((s) => secCounts[s] == secMin)
+                : null;
 
-              // ---- timings ----
-              int countFor(BatchSlot b) => (needsSection && tempSection.isNotEmpty)
-                  ? _classCount(load, tempSection, b.label)
-                  : _timingCount(load, b.label);
-              final free = BatchSlots.all.where((b) => !taken.containsKey(b.label)).toList();
-              final freeCounts = free.map(countFor).toList();
-              final tMin = freeCounts.isEmpty ? 0 : freeCounts.reduce((a, b) => a < b ? a : b);
-              final tMax = freeCounts.isEmpty ? 0 : freeCounts.reduce((a, b) => a > b ? a : b);
-              final fewestTiming =
-                  hasLoad && tMax > tMin ? free.firstWhere((b) => countFor(b) == tMin).label : null;
-              final allTimingMax = BatchSlots.all.map(countFor).fold<int>(0, (a, b) => a > b ? a : b);
+            // ---- timings ----
+            int countFor(BatchSlot b) =>
+                (needsSection && tempSection.isNotEmpty)
+                ? _classCount(load, tempSection, b.label)
+                : _timingCount(load, b.label);
+            final free = BatchSlots.all
+                .where((b) => !taken.containsKey(b.label))
+                .toList();
+            final freeCounts = free.map(countFor).toList();
+            final tMin = freeCounts.isEmpty
+                ? 0
+                : freeCounts.reduce((a, b) => a < b ? a : b);
+            final tMax = freeCounts.isEmpty
+                ? 0
+                : freeCounts.reduce((a, b) => a > b ? a : b);
+            final fewestTiming = hasLoad && tMax > tMin
+                ? free.firstWhere((b) => countFor(b) == tMin).label
+                : null;
+            final allTimingMax = BatchSlots.all
+                .map(countFor)
+                .fold<int>(0, (a, b) => a > b ? a : b);
 
-              final canSave = tempTiming.isNotEmpty && (!needsSection || tempSection.isNotEmpty);
+            final canSave =
+                tempTiming.isNotEmpty &&
+                (!needsSection || tempSection.isNotEmpty);
 
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _panelHeader(
-                    icon: wasEnabled ? Icons.edit_calendar_rounded : Icons.lock_open_rounded,
-                    title: title,
-                    subtitle: '${_isOnline ? 'Online' : 'Offline'} class • $_studentName',
-                  ),
-                  Flexible(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(18, 6, 18, 12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                            decoration: BoxDecoration(color: subtle, borderRadius: BorderRadius.circular(10)),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.people_alt_outlined, size: 15, color: secondaryText),
-                                const SizedBox(width: 7),
-                                Expanded(
-                                  child: Text(
-                                    hasLoad
-                                        ? 'Numbers show students already in each class (${_num(load?['total'])} in this stage, not counting $_firstName).'
-                                        : (loadingLoad ? 'Loading student counts…' : 'Student counts unavailable.'),
-                                    style: GoogleFonts.poppins(color: secondaryText, fontSize: 10, height: 1.35),
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _panelHeader(
+                  icon: wasEnabled
+                      ? Icons.edit_calendar_rounded
+                      : Icons.lock_open_rounded,
+                  title: title,
+                  subtitle:
+                      '${_isOnline ? 'Online' : 'Offline'} class • $_studentName',
+                ),
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(18, 6, 18, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: subtle,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.people_alt_outlined,
+                                size: 15,
+                                color: secondaryText,
+                              ),
+                              const SizedBox(width: 7),
+                              Expanded(
+                                child: Text(
+                                  hasLoad
+                                      ? 'Numbers show students already in each class (${_num(load?['total'])} in this stage, not counting $_firstName).'
+                                      : (loadingLoad
+                                            ? 'Loading student counts…'
+                                            : 'Student counts unavailable.'),
+                                  style: GoogleFonts.poppins(
+                                    color: secondaryText,
+                                    fontSize: 10,
+                                    height: 1.35,
                                   ),
                                 ),
-                                if (!hasLoad && loadingLoad)
-                                  const SizedBox(
-                                      width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: blue)),
-                              ],
-                            ),
+                              ),
+                              if (!hasLoad && loadingLoad)
+                                const SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: blue,
+                                  ),
+                                ),
+                            ],
                           ),
-                          const SizedBox(height: 14),
+                        ),
+                        const SizedBox(height: 14),
 
-                          // ================= SECTION =================
-                          if (needsSection) ...[
-                            _stepLabel('1', 'Choose section'),
-                            LayoutBuilder(builder: (ctx, c) {
+                        // ================= SECTION =================
+                        if (needsSection) ...[
+                          _stepLabel('1', 'Choose section'),
+                          LayoutBuilder(
+                            builder: (ctx, c) {
                               final cols = c.maxWidth >= 480 ? 5 : 3;
                               final w = (c.maxWidth - (cols - 1) * 8) / cols;
                               return Wrap(
@@ -1005,7 +1275,11 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
                                 children: sections.map((s) {
                                   final chosen = tempSection == s;
                                   final n = secCounts[s] ?? 0;
-                                  final trainer = _trainerFor(isEnglish, key, s);
+                                  final trainer = _trainerFor(
+                                    isEnglish,
+                                    key,
+                                    s,
+                                  );
                                   return SizedBox(
                                     width: w,
                                     child: InkWell(
@@ -1015,15 +1289,30 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
                                         setSheet(() => tempSection = s);
                                       },
                                       child: AnimatedContainer(
-                                        duration: const Duration(milliseconds: 140),
-                                        padding: const EdgeInsets.fromLTRB(10, 9, 10, 9),
+                                        duration: const Duration(
+                                          milliseconds: 140,
+                                        ),
+                                        padding: const EdgeInsets.fromLTRB(
+                                          10,
+                                          9,
+                                          10,
+                                          9,
+                                        ),
                                         decoration: BoxDecoration(
-                                          color: chosen ? blue.withOpacity(.09) : subtle,
-                                          borderRadius: BorderRadius.circular(13),
-                                          border: Border.all(color: chosen ? blue : borderColor, width: chosen ? 1.5 : 1),
+                                          color: chosen
+                                              ? blue.withOpacity(.09)
+                                              : subtle,
+                                          borderRadius: BorderRadius.circular(
+                                            13,
+                                          ),
+                                          border: Border.all(
+                                            color: chosen ? blue : borderColor,
+                                            width: chosen ? 1.5 : 1,
+                                          ),
                                         ),
                                         child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
                                           children: [
                                             Row(
                                               children: [
@@ -1032,48 +1321,90 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
                                                   height: 26,
                                                   alignment: Alignment.center,
                                                   decoration: BoxDecoration(
-                                                    color: chosen ? blue : cardBg,
+                                                    color: chosen
+                                                        ? blue
+                                                        : cardBg,
                                                     shape: BoxShape.circle,
-                                                    border: Border.all(color: chosen ? blue : borderColor),
+                                                    border: Border.all(
+                                                      color: chosen
+                                                          ? blue
+                                                          : borderColor,
+                                                    ),
                                                   ),
-                                                  child: Text(s,
-                                                      style: GoogleFonts.poppins(
-                                                          color: chosen ? Colors.white : textColor,
-                                                          fontSize: 12,
-                                                          fontWeight: FontWeight.w800)),
+                                                  child: Text(
+                                                    s,
+                                                    style: GoogleFonts.poppins(
+                                                      color: chosen
+                                                          ? Colors.white
+                                                          : textColor,
+                                                      fontSize: 12,
+                                                      fontWeight:
+                                                          FontWeight.w800,
+                                                    ),
+                                                  ),
                                                 ),
                                                 const Spacer(),
                                                 if (chosen)
-                                                  const Icon(Icons.check_circle_rounded, color: blue, size: 16)
+                                                  const Icon(
+                                                    Icons.check_circle_rounded,
+                                                    color: blue,
+                                                    size: 16,
+                                                  )
                                                 else if (fewestSection == s)
-                                                  const Icon(Icons.trending_down_rounded, color: green, size: 16),
+                                                  const Icon(
+                                                    Icons.trending_down_rounded,
+                                                    color: green,
+                                                    size: 16,
+                                                  ),
                                               ],
                                             ),
                                             const SizedBox(height: 7),
-                                            Text(hasLoad ? '$n student${n == 1 ? '' : 's'}' : '…',
-                                                style: GoogleFonts.poppins(
-                                                    color: textColor, fontSize: 11.5, fontWeight: FontWeight.w700)),
+                                            Text(
+                                              hasLoad
+                                                  ? '$n student${n == 1 ? '' : 's'}'
+                                                  : '…',
+                                              style: GoogleFonts.poppins(
+                                                color: textColor,
+                                                fontSize: 11.5,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
                                             const SizedBox(height: 4),
                                             ClipRRect(
-                                              borderRadius: BorderRadius.circular(4),
+                                              borderRadius:
+                                                  BorderRadius.circular(4),
                                               child: LinearProgressIndicator(
-                                                value: secMax == 0 ? 0 : n / secMax,
+                                                value: secMax == 0
+                                                    ? 0
+                                                    : n / secMax,
                                                 minHeight: 4,
                                                 backgroundColor: cardBg,
-                                                valueColor: AlwaysStoppedAnimation(fewestSection == s ? green : blue),
+                                                valueColor:
+                                                    AlwaysStoppedAnimation(
+                                                      fewestSection == s
+                                                          ? green
+                                                          : blue,
+                                                    ),
                                               ),
                                             ),
                                             const SizedBox(height: 4),
                                             Text(
-                                              fewestSection == s ? 'Fewest' : (trainer ?? 'No trainer'),
+                                              fewestSection == s
+                                                  ? 'Fewest'
+                                                  : (trainer ?? 'No trainer'),
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
                                               style: GoogleFonts.poppins(
                                                 color: fewestSection == s
                                                     ? green
-                                                    : (trainer == null ? secondaryText.withOpacity(.7) : secondaryText),
+                                                    : (trainer == null
+                                                          ? secondaryText
+                                                                .withOpacity(.7)
+                                                          : secondaryText),
                                                 fontSize: 9,
-                                                fontWeight: fewestSection == s ? FontWeight.w800 : FontWeight.w500,
+                                                fontWeight: fewestSection == s
+                                                    ? FontWeight.w800
+                                                    : FontWeight.w500,
                                               ),
                                             ),
                                           ],
@@ -1083,217 +1414,331 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
                                   );
                                 }).toList(),
                               );
-                            }),
-                            if (otherEnglishOn && _hasSection && tempSection.isNotEmpty && tempSection != selectedSection)
-                              Container(
-                                margin: const EdgeInsets.only(top: 8),
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                decoration: BoxDecoration(
-                                    color: amber.withOpacity(.15), borderRadius: BorderRadius.circular(10)),
-                                child: Row(
-                                  children: [
-                                    const Icon(Icons.info_outline_rounded, size: 14, color: amberText),
-                                    const SizedBox(width: 6),
-                                    Expanded(
-                                      child: Text(
-                                        'The section is the same for all English stages — $_firstName moves to Section $tempSection in every English stage.',
-                                        style: GoogleFonts.poppins(color: amberText, fontSize: 9.8, height: 1.35),
+                            },
+                          ),
+                          if (otherEnglishOn &&
+                              _hasSection &&
+                              tempSection.isNotEmpty &&
+                              tempSection != selectedSection)
+                            Container(
+                              margin: const EdgeInsets.only(top: 8),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: amber.withOpacity(.15),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.info_outline_rounded,
+                                    size: 14,
+                                    color: amberText,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      'The section is the same for all English stages — $_firstName moves to Section $tempSection in every English stage.',
+                                      style: GoogleFonts.poppins(
+                                        color: amberText,
+                                        fontSize: 9.8,
+                                        height: 1.35,
                                       ),
                                     ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          const SizedBox(height: 16),
+                        ],
+
+                        // ================= TIMING =================
+                        _stepLabel(
+                          needsSection ? '2' : '1',
+                          'Choose timing',
+                          trailing: needsSection && tempSection.isNotEmpty
+                              ? Text(
+                                  'in Section $tempSection',
+                                  style: GoogleFonts.poppins(
+                                    color: secondaryText,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                )
+                              : null,
+                        ),
+                        ...BatchSlots.all.map((b) {
+                          final usedBy = taken[b.label];
+                          final disabled = usedBy != null;
+                          final chosen = tempTiming == b.label;
+                          final n = countFor(b);
+                          final total = _timingCount(load, b.label);
+                          final isFewest = fewestTiming == b.label;
+                          final sub = !hasLoad
+                              ? '…'
+                              : (needsSection && tempSection.isNotEmpty)
+                              ? '$n in Section $tempSection • $total in this stage'
+                              : '$n student${n == 1 ? '' : 's'}';
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: disabled
+                                  ? null
+                                  : () {
+                                      HapticFeedback.selectionClick();
+                                      setSheet(() => tempTiming = b.label);
+                                    },
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 140),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 11,
+                                  vertical: 9,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: disabled
+                                      ? const Color(0xFFF2F4F6)
+                                      : chosen
+                                      ? blue.withOpacity(.09)
+                                      : subtle,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: chosen ? blue : borderColor,
+                                    width: chosen ? 1.5 : 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 28,
+                                      height: 28,
+                                      alignment: Alignment.center,
+                                      decoration: BoxDecoration(
+                                        color: chosen ? blue : cardBg,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: chosen ? blue : borderColor,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        '${b.number}',
+                                        style: GoogleFonts.poppins(
+                                          color: chosen
+                                              ? Colors.white
+                                              : secondaryText,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            b.shortLabel,
+                                            style: GoogleFonts.poppins(
+                                              color: disabled
+                                                  ? secondaryText.withOpacity(
+                                                      .6,
+                                                    )
+                                                  : textColor,
+                                              fontSize: 12.3,
+                                              fontWeight: chosen
+                                                  ? FontWeight.w700
+                                                  : FontWeight.w600,
+                                              decoration: disabled
+                                                  ? TextDecoration.lineThrough
+                                                  : null,
+                                            ),
+                                          ),
+                                          if (!disabled) ...[
+                                            const SizedBox(height: 3),
+                                            Row(
+                                              children: [
+                                                SizedBox(
+                                                  width: 54,
+                                                  child: ClipRRect(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          4,
+                                                        ),
+                                                    child: LinearProgressIndicator(
+                                                      value: allTimingMax == 0
+                                                          ? 0
+                                                          : n / allTimingMax,
+                                                      minHeight: 4,
+                                                      backgroundColor: cardBg,
+                                                      valueColor:
+                                                          AlwaysStoppedAnimation(
+                                                            isFewest
+                                                                ? green
+                                                                : blue,
+                                                          ),
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 7),
+                                                Flexible(
+                                                  child: Text(
+                                                    sub,
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                    style: GoogleFonts.poppins(
+                                                      color: secondaryText,
+                                                      fontSize: 9.5,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    if (disabled)
+                                      Container(
+                                        constraints: const BoxConstraints(
+                                          maxWidth: 120,
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 7,
+                                          vertical: 3,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: red.withOpacity(.10),
+                                          borderRadius: BorderRadius.circular(
+                                            7,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          'Used by $usedBy',
+                                          maxLines: 2,
+                                          style: GoogleFonts.poppins(
+                                            color: red,
+                                            fontSize: 8.5,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      )
+                                    else if (chosen)
+                                      const Icon(
+                                        Icons.check_circle_rounded,
+                                        color: blue,
+                                        size: 19,
+                                      )
+                                    else if (isFewest)
+                                      _fewestBadge(),
                                   ],
                                 ),
                               ),
-                            const SizedBox(height: 16),
-                          ],
-
-                          // ================= TIMING =================
-                          _stepLabel(
-                            needsSection ? '2' : '1',
-                            'Choose timing',
-                            trailing: needsSection && tempSection.isNotEmpty
-                                ? Text('in Section $tempSection',
-                                    style: GoogleFonts.poppins(
-                                        color: secondaryText, fontSize: 10, fontWeight: FontWeight.w600))
-                                : null,
-                          ),
-                          ...BatchSlots.all.map((b) {
-                            final usedBy = taken[b.label];
-                            final disabled = usedBy != null;
-                            final chosen = tempTiming == b.label;
-                            final n = countFor(b);
-                            final total = _timingCount(load, b.label);
-                            final isFewest = fewestTiming == b.label;
-                            final sub = !hasLoad
-                                ? '…'
-                                : (needsSection && tempSection.isNotEmpty)
-                                    ? '$n in Section $tempSection • $total in this stage'
-                                    : '$n student${n == 1 ? '' : 's'}';
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 6),
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(12),
-                                onTap: disabled
-                                    ? null
-                                    : () {
-                                        HapticFeedback.selectionClick();
-                                        setSheet(() => tempTiming = b.label);
-                                      },
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 140),
-                                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
-                                  decoration: BoxDecoration(
-                                    color: disabled
-                                        ? const Color(0xFFF2F4F6)
-                                        : chosen
-                                            ? blue.withOpacity(.09)
-                                            : subtle,
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: chosen ? blue : borderColor, width: chosen ? 1.5 : 1),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        width: 28,
-                                        height: 28,
-                                        alignment: Alignment.center,
-                                        decoration: BoxDecoration(
-                                          color: chosen ? blue : cardBg,
-                                          shape: BoxShape.circle,
-                                          border: Border.all(color: chosen ? blue : borderColor),
-                                        ),
-                                        child: Text('${b.number}',
-                                            style: GoogleFonts.poppins(
-                                                color: chosen ? Colors.white : secondaryText,
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.w800)),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              b.shortLabel,
-                                              style: GoogleFonts.poppins(
-                                                color: disabled ? secondaryText.withOpacity(.6) : textColor,
-                                                fontSize: 12.3,
-                                                fontWeight: chosen ? FontWeight.w700 : FontWeight.w600,
-                                                decoration: disabled ? TextDecoration.lineThrough : null,
-                                              ),
-                                            ),
-                                            if (!disabled) ...[
-                                              const SizedBox(height: 3),
-                                              Row(
-                                                children: [
-                                                  SizedBox(
-                                                    width: 54,
-                                                    child: ClipRRect(
-                                                      borderRadius: BorderRadius.circular(4),
-                                                      child: LinearProgressIndicator(
-                                                        value: allTimingMax == 0 ? 0 : n / allTimingMax,
-                                                        minHeight: 4,
-                                                        backgroundColor: cardBg,
-                                                        valueColor: AlwaysStoppedAnimation(isFewest ? green : blue),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 7),
-                                                  Flexible(
-                                                    child: Text(sub,
-                                                        maxLines: 1,
-                                                        overflow: TextOverflow.ellipsis,
-                                                        style: GoogleFonts.poppins(color: secondaryText, fontSize: 9.5)),
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          ],
-                                        ),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      if (disabled)
-                                        Container(
-                                          constraints: const BoxConstraints(maxWidth: 120),
-                                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                                          decoration: BoxDecoration(
-                                              color: red.withOpacity(.10), borderRadius: BorderRadius.circular(7)),
-                                          child: Text('Used by $usedBy',
-                                              maxLines: 2,
-                                              style: GoogleFonts.poppins(
-                                                  color: red, fontSize: 8.5, fontWeight: FontWeight.w700)),
-                                        )
-                                      else if (chosen)
-                                        const Icon(Icons.check_circle_rounded, color: blue, size: 19)
-                                      else if (isFewest)
-                                        _fewestBadge(),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            );
-                          }),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  // ================= FOOTER =================
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
-                    decoration: const BoxDecoration(border: Border(top: BorderSide(color: borderColor))),
-                    child: Row(
-                      children: [
-                        if (wasEnabled)
-                          TextButton.icon(
-                            onPressed: () {
-                              Get.back();
-                              _disableStage(isEnglish, key);
-                            },
-                            icon: const Icon(Icons.block_rounded, size: 15, color: red),
-                            label: Text('Turn off',
-                                style: GoogleFonts.poppins(color: red, fontSize: 11.5, fontWeight: FontWeight.w700)),
-                          ),
-                        const Spacer(),
-                        TextButton(
-                          onPressed: () => Get.back(),
-                          child: Text('Cancel',
-                              style: GoogleFonts.poppins(color: secondaryText, fontWeight: FontWeight.w600)),
-                        ),
-                        const SizedBox(width: 6),
-                        ElevatedButton.icon(
-                          onPressed: !canSave
-                              ? null
-                              : () {
-                                  Get.back();
-                                  HapticFeedback.selectionClick();
-                                  setState(() {
-                                    if (needsSection) selectedSection = tempSection;
-                                    accessMap[key] = true;
-                                    (isEnglish ? englishDone : hindiDone)[key] = false; // current again
-                                    batchMap[key] = tempTiming;
-                                    if (selectedBatch.isEmpty) selectedBatch = tempTiming;
-                                  });
-                                },
-                          icon: Icon(wasEnabled ? Icons.check_rounded : Icons.lock_open_rounded, size: 16),
-                          label: Text(wasEnabled ? 'Apply' : 'Enable stage',
-                              style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 12)),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: navy,
-                            foregroundColor: Colors.white,
-                            disabledBackgroundColor: borderColor,
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                        ),
+                            ),
+                          );
+                        }),
                       ],
                     ),
                   ),
-                ],
-              );
-            },
-          ),
-        ));
+                ),
+
+                // ================= FOOTER =================
+                Container(
+                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+                  decoration: const BoxDecoration(
+                    border: Border(top: BorderSide(color: borderColor)),
+                  ),
+                  child: Row(
+                    children: [
+                      if (wasEnabled)
+                        TextButton.icon(
+                          onPressed: () {
+                            Get.back();
+                            _disableStage(isEnglish, key);
+                          },
+                          icon: const Icon(
+                            Icons.block_rounded,
+                            size: 15,
+                            color: red,
+                          ),
+                          label: Text(
+                            'Turn off',
+                            style: GoogleFonts.poppins(
+                              color: red,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      const Spacer(),
+                      TextButton(
+                        onPressed: () => Get.back(),
+                        child: Text(
+                          'Cancel',
+                          style: GoogleFonts.poppins(
+                            color: secondaryText,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      ElevatedButton.icon(
+                        onPressed: !canSave
+                            ? null
+                            : () {
+                                Get.back();
+                                HapticFeedback.selectionClick();
+                                setState(() {
+                                  if (needsSection)
+                                    selectedSection = tempSection;
+                                  accessMap[key] = true;
+                                  (isEnglish ? englishDone : hindiDone)[key] =
+                                      false; // current again
+                                  batchMap[key] = tempTiming;
+                                  if (selectedBatch.isEmpty)
+                                    selectedBatch = tempTiming;
+                                });
+                              },
+                        icon: Icon(
+                          wasEnabled
+                              ? Icons.check_rounded
+                              : Icons.lock_open_rounded,
+                          size: 16,
+                        ),
+                        label: Text(
+                          wasEnabled ? 'Apply' : 'Enable stage',
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: navy,
+                          foregroundColor: Colors.white,
+                          disabledBackgroundColor: borderColor,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
   }
 
   // =========================================================
@@ -1303,133 +1748,185 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
     final enabled = stageKeys.where((k) => englishAccess[k] == true).toList();
     String temp = selectedSection;
 
-    _showPanel((ctx) => StatefulBuilder(
-          builder: (ctx, setSheet) => ValueListenableBuilder<Map<String, dynamic>?>(
-            valueListenable: _load,
-            builder: (ctx, data, _) {
-              final hasLoad = data != null;
-              int totalFor(String s) =>
-                  enabled.fold<int>(0, (a, k) => a + _sectionCount(_stageLoad(true, k), s));
-              final totals = {for (final s in sections) s: totalFor(s)};
-              final mn = totals.values.reduce((a, b) => a < b ? a : b);
-              final mx = totals.values.reduce((a, b) => a > b ? a : b);
-              final fewest = hasLoad && mx > mn ? sections.firstWhere((s) => totals[s] == mn) : null;
+    _showPanel(
+      (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => ValueListenableBuilder<Map<String, dynamic>?>(
+          valueListenable: _load,
+          builder: (ctx, data, _) {
+            final hasLoad = data != null;
+            int totalFor(String s) => enabled.fold<int>(
+              0,
+              (a, k) => a + _sectionCount(_stageLoad(true, k), s),
+            );
+            final totals = {for (final s in sections) s: totalFor(s)};
+            final mn = totals.values.reduce((a, b) => a < b ? a : b);
+            final mx = totals.values.reduce((a, b) => a > b ? a : b);
+            final fewest = hasLoad && mx > mn
+                ? sections.firstWhere((s) => totals[s] == mn)
+                : null;
 
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _panelHeader(
-                    icon: Icons.groups_rounded,
-                    title: 'Online section',
-                    subtitle: 'Used for all of $_firstName\'s English stages',
-                  ),
-                  Flexible(
-                    child: ListView.separated(
-                      shrinkWrap: true,
-                      padding: const EdgeInsets.fromLTRB(18, 6, 18, 12),
-                      itemCount: sections.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 7),
-                      itemBuilder: (ctx, i) {
-                        final s = sections[i];
-                        final chosen = temp == s;
-                        return InkWell(
-                          borderRadius: BorderRadius.circular(13),
-                          onTap: () => setSheet(() => temp = s),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 140),
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                            decoration: BoxDecoration(
-                              color: chosen ? blue.withOpacity(.09) : subtle,
-                              borderRadius: BorderRadius.circular(13),
-                              border: Border.all(color: chosen ? blue : borderColor, width: chosen ? 1.5 : 1),
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _panelHeader(
+                  icon: Icons.groups_rounded,
+                  title: 'Online section',
+                  subtitle: 'Used for all of $_firstName\'s English stages',
+                ),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.fromLTRB(18, 6, 18, 12),
+                    itemCount: sections.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 7),
+                    itemBuilder: (ctx, i) {
+                      final s = sections[i];
+                      final chosen = temp == s;
+                      return InkWell(
+                        borderRadius: BorderRadius.circular(13),
+                        onTap: () => setSheet(() => temp = s),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 140),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: chosen ? blue.withOpacity(.09) : subtle,
+                            borderRadius: BorderRadius.circular(13),
+                            border: Border.all(
+                              color: chosen ? blue : borderColor,
+                              width: chosen ? 1.5 : 1,
                             ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 32,
-                                  height: 32,
-                                  alignment: Alignment.center,
-                                  decoration: BoxDecoration(
-                                    color: chosen ? blue : cardBg,
-                                    shape: BoxShape.circle,
-                                    border: Border.all(color: chosen ? blue : borderColor),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 32,
+                                height: 32,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: chosen ? blue : cardBg,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: chosen ? blue : borderColor,
                                   ),
-                                  child: Text(s,
+                                ),
+                                child: Text(
+                                  s,
+                                  style: GoogleFonts.poppins(
+                                    color: chosen ? Colors.white : textColor,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 11),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Section $s',
                                       style: GoogleFonts.poppins(
-                                          color: chosen ? Colors.white : textColor,
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 13)),
-                                ),
-                                const SizedBox(width: 11),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text('Section $s',
-                                          style: GoogleFonts.poppins(
-                                              color: textColor, fontSize: 12.5, fontWeight: FontWeight.w700)),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        !hasLoad
-                                            ? 'Loading…'
-                                            : enabled.isEmpty
-                                                ? 'No English stage enabled yet'
-                                                : enabled
-                                                    .map((k) =>
-                                                        'S${_stageNo(k)}: ${_sectionCount(_stageLoad(true, k), s)}')
-                                                    .join('  •  '),
-                                        maxLines: 2,
-                                        style: GoogleFonts.poppins(color: secondaryText, fontSize: 9.8),
+                                        color: textColor,
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w700,
                                       ),
-                                    ],
-                                  ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      !hasLoad
+                                          ? 'Loading…'
+                                          : enabled.isEmpty
+                                          ? 'No English stage enabled yet'
+                                          : enabled
+                                                .map(
+                                                  (k) =>
+                                                      'S${_stageNo(k)}: ${_sectionCount(_stageLoad(true, k), s)}',
+                                                )
+                                                .join('  •  '),
+                                      maxLines: 2,
+                                      style: GoogleFonts.poppins(
+                                        color: secondaryText,
+                                        fontSize: 9.8,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                if (fewest == s) ...[_fewestBadge(), const SizedBox(width: 6)],
-                                if (chosen) const Icon(Icons.check_circle_rounded, color: blue, size: 19),
+                              ),
+                              if (fewest == s) ...[
+                                _fewestBadge(),
+                                const SizedBox(width: 6),
                               ],
-                            ),
+                              if (chosen)
+                                const Icon(
+                                  Icons.check_circle_rounded,
+                                  color: blue,
+                                  size: 19,
+                                ),
+                            ],
                           ),
-                        );
-                      },
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
-                    decoration: const BoxDecoration(border: Border(top: BorderSide(color: borderColor))),
-                    child: Row(
-                      children: [
-                        const Spacer(),
-                        TextButton(
-                          onPressed: () => Get.back(),
-                          child: Text('Cancel',
-                              style: GoogleFonts.poppins(color: secondaryText, fontWeight: FontWeight.w600)),
                         ),
-                        const SizedBox(width: 6),
-                        ElevatedButton(
-                          onPressed: temp.isEmpty
-                              ? null
-                              : () {
-                                  Get.back();
-                                  setState(() => selectedSection = temp);
-                                },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: navy,
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      );
+                    },
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+                  decoration: const BoxDecoration(
+                    border: Border(top: BorderSide(color: borderColor)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Spacer(),
+                      TextButton(
+                        onPressed: () => Get.back(),
+                        child: Text(
+                          'Cancel',
+                          style: GoogleFonts.poppins(
+                            color: secondaryText,
+                            fontWeight: FontWeight.w600,
                           ),
-                          child: Text('Use Section ${temp.isEmpty ? '' : temp}',
-                              style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 12)),
                         ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(width: 6),
+                      ElevatedButton(
+                        onPressed: temp.isEmpty
+                            ? null
+                            : () {
+                                Get.back();
+                                setState(() => selectedSection = temp);
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: navy,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 12,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: Text(
+                          'Use Section ${temp.isEmpty ? '' : temp}',
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              );
-            },
-          ),
-        ));
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
   }
 
   // =========================================================
@@ -1457,27 +1954,47 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
           leading: IconButton(
             tooltip: 'Back to Students',
             onPressed: _goBackToStudents,
-            icon: const Icon(Icons.arrow_back_rounded, color: textColor, size: 22),
+            icon: const Icon(
+              Icons.arrow_back_rounded,
+              color: textColor,
+              size: 22,
+            ),
           ),
           titleSpacing: 0,
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Student control',
-                  style: GoogleFonts.poppins(color: textColor, fontSize: isDesktop ? 17 : 15.5, fontWeight: FontWeight.w700)),
+              Text(
+                'Student control',
+                style: GoogleFonts.poppins(
+                  color: textColor,
+                  fontSize: isDesktop ? 17 : 15.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
                     width: 6,
                     height: 6,
-                    decoration: BoxDecoration(color: _live ? green : secondaryText.withOpacity(.5), shape: BoxShape.circle),
+                    decoration: BoxDecoration(
+                      color: _live ? green : secondaryText.withOpacity(.5),
+                      shape: BoxShape.circle,
+                    ),
                   ),
                   const SizedBox(width: 5),
-                  Text(_live ? 'Live • updates by itself' : 'Mode, stages, section & timing',
-                      style: GoogleFonts.poppins(
-                          color: _live ? green : secondaryText, fontSize: 9.5, fontWeight: _live ? FontWeight.w600 : FontWeight.w400)),
+                  Text(
+                    _live
+                        ? 'Live • updates by itself'
+                        : 'Mode, stages, section & timing',
+                    style: GoogleFonts.poppins(
+                      color: _live ? green : secondaryText,
+                      fontSize: 9.5,
+                      fontWeight: _live ? FontWeight.w600 : FontWeight.w400,
+                    ),
+                  ),
                 ],
               ),
             ],
@@ -1485,11 +2002,20 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
           actions: [
             IconButton(
               tooltip: 'Attendance report',
-              onPressed: () => Get.to(() => AttendanceReportScreen(userId: _userId, name: _studentName, role: 'student')),
+              onPressed: () => Get.to(
+                () => AttendanceReportScreen(
+                  userId: _userId,
+                  name: _studentName,
+                  role: 'student',
+                ),
+              ),
               icon: const Icon(Icons.insights_rounded, color: navy),
             ),
             if (isDesktop)
-              Padding(padding: const EdgeInsets.only(right: 18, left: 6), child: _saveButton(compact: true)),
+              Padding(
+                padding: const EdgeInsets.only(right: 18, left: 6),
+                child: _saveButton(compact: true),
+              ),
           ],
         ),
         bottomNavigationBar: isDesktop ? null : _mobileSaveBar(),
@@ -1550,21 +2076,33 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
         decoration: BoxDecoration(
           color: cardBg,
           border: const Border(top: BorderSide(color: borderColor)),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(.06), blurRadius: 18, offset: const Offset(0, -5))],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(.06),
+              blurRadius: 18,
+              offset: const Offset(0, -5),
+            ),
+          ],
         ),
         child: Row(
           children: [
             Container(
               width: 8,
               height: 8,
-              decoration: BoxDecoration(color: dirty ? amber : green, shape: BoxShape.circle),
+              decoration: BoxDecoration(
+                color: dirty ? amber : green,
+                shape: BoxShape.circle,
+              ),
             ),
             const SizedBox(width: 7),
             Expanded(
               child: Text(
                 dirty ? 'Unsaved changes' : 'All changes saved',
                 style: GoogleFonts.poppins(
-                    color: dirty ? amberText : secondaryText, fontSize: 11, fontWeight: FontWeight.w600),
+                  color: dirty ? amberText : secondaryText,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
             SizedBox(width: 170, child: _saveButton(compact: false)),
@@ -1582,11 +2120,22 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
       child: ElevatedButton.icon(
         onPressed: isSaving ? null : _saveAllSettings,
         icon: isSaving
-            ? const SizedBox(width: 15, height: 15, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+            ? const SizedBox(
+                width: 15,
+                height: 15,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2,
+                ),
+              )
             : Icon(dirty ? Icons.save_rounded : Icons.check_rounded, size: 17),
         label: Text(
           isSaving ? 'Saving…' : (dirty ? 'Save changes' : 'Saved'),
-          style: GoogleFonts.poppins(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+          style: GoogleFonts.poppins(
+            color: Colors.white,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
         ),
         style: ElevatedButton.styleFrom(
           backgroundColor: dirty ? navy : green,
@@ -1594,7 +2143,9 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
           disabledBackgroundColor: navy.withOpacity(.65),
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
       ),
     );
@@ -1604,8 +2155,11 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
   // HERO
   // =========================================================
   Widget _buildHero({required bool isDesktop}) {
-    final initial = _studentName.trim().isNotEmpty ? _studentName.trim()[0].toUpperCase() : 'S';
-    final phone = (_user['phone'] ?? widget.user['phone'] ?? 'No phone').toString();
+    final initial = _studentName.trim().isNotEmpty
+        ? _studentName.trim()[0].toUpperCase()
+        : 'S';
+    final phone = (_user['phone'] ?? widget.user['phone'] ?? 'No phone')
+        .toString();
     final isPaid = selectedFeeStatus == 'paid';
     final enCount = stageKeys.where((k) => englishAccess[k] == true).length;
     final hiCount = stageKeys.where((k) => hindiAccess[k] == true).length;
@@ -1632,9 +2186,14 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
               border: Border.all(color: Colors.white.withOpacity(.22)),
             ),
             alignment: Alignment.center,
-            child: Text(initial,
-                style: GoogleFonts.poppins(
-                    color: Colors.white, fontSize: isDesktop ? 23 : 20, fontWeight: FontWeight.w700)),
+            child: Text(
+              initial,
+              style: GoogleFonts.poppins(
+                color: Colors.white,
+                fontSize: isDesktop ? 23 : 20,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
           const SizedBox(width: 13),
           Expanded(
@@ -1644,18 +2203,26 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
                 Row(
                   children: [
                     Flexible(
-                      child: Text(_studentName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.poppins(
-                              color: Colors.white, fontSize: isDesktop ? 18 : 16, fontWeight: FontWeight.w700)),
+                      child: Text(
+                        _studentName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          color: Colors.white,
+                          fontSize: isDesktop ? 18 : 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
                     if (!isDesktop) ...[
                       const SizedBox(width: 8),
                       Container(
                         width: 8,
                         height: 8,
-                        decoration: BoxDecoration(color: regularityColor, shape: BoxShape.circle),
+                        decoration: BoxDecoration(
+                          color: regularityColor,
+                          shape: BoxShape.circle,
+                        ),
                       ),
                     ],
                   ],
@@ -1665,18 +2232,44 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
                     Clipboard.setData(ClipboardData(text: phone));
                     _snack('Copied', phone, navy, icon: Icons.copy_rounded);
                   },
-                  child: Text(phone, style: GoogleFonts.poppins(color: Colors.white.withOpacity(.72), fontSize: 10.5)),
+                  child: Text(
+                    phone,
+                    style: GoogleFonts.poppins(
+                      color: Colors.white.withOpacity(.72),
+                      fontSize: 10.5,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 6,
                   runSpacing: 5,
                   children: [
-                    _heroChip(_isOnline ? Icons.wifi_rounded : Icons.location_on_rounded, _isOnline ? 'Online' : 'Offline'),
-                    if (_isOnline && _hasSection && enCount > 0) _heroChip(Icons.groups_rounded, 'Section $selectedSection'),
-                    if (enCount > 0) _heroChip(Icons.translate_rounded, 'English $enCount/7'),
-                    if (hiCount > 0) _heroChip(Icons.language_rounded, 'Hindi $hiCount/7'),
-                    _heroChip(isPaid ? Icons.verified_rounded : Icons.error_outline_rounded, isPaid ? 'Paid' : 'Unpaid'),
+                    _heroChip(
+                      _isOnline
+                          ? Icons.wifi_rounded
+                          : Icons.location_on_rounded,
+                      _isOnline ? 'Online' : 'Offline',
+                    ),
+                    _heroChip(
+                      Icons.how_to_reg_rounded,
+                      'Joined for $_chosenLanguage',
+                    ), // 🌐 chosen at sign-up
+                    if (_isOnline && _hasSection && enCount > 0)
+                      _heroChip(
+                        Icons.groups_rounded,
+                        'Section $selectedSection',
+                      ),
+                    if (enCount > 0)
+                      _heroChip(Icons.translate_rounded, 'English $enCount/7'),
+                    if (hiCount > 0)
+                      _heroChip(Icons.language_rounded, 'Hindi $hiCount/7'),
+                    _heroChip(
+                      isPaid
+                          ? Icons.verified_rounded
+                          : Icons.error_outline_rounded,
+                      isPaid ? 'Paid' : 'Unpaid',
+                    ),
                   ],
                 ),
               ],
@@ -1694,10 +2287,23 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(width: 7, height: 7, decoration: BoxDecoration(color: regularityColor, shape: BoxShape.circle)),
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                      color: regularityColor,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
                   const SizedBox(width: 6),
-                  Text(regularityStatus,
-                      style: GoogleFonts.poppins(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
+                  Text(
+                    regularityStatus,
+                    style: GoogleFonts.poppins(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -1720,7 +2326,14 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
         children: [
           Icon(icon, size: 12, color: const Color(0xFFF7DF55)),
           const SizedBox(width: 4),
-          Text(label, style: GoogleFonts.poppins(color: Colors.white, fontSize: 9.5, fontWeight: FontWeight.w600)),
+          Text(
+            label,
+            style: GoogleFonts.poppins(
+              color: Colors.white,
+              fontSize: 9.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );
@@ -1753,7 +2366,10 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
               Container(
                 width: 34,
                 height: 34,
-                decoration: BoxDecoration(color: accent.withOpacity(.09), borderRadius: BorderRadius.circular(10)),
+                decoration: BoxDecoration(
+                  color: accent.withOpacity(.09),
+                  borderRadius: BorderRadius.circular(10),
+                ),
                 child: Icon(icon, color: accent, size: 18),
               ),
               const SizedBox(width: 10),
@@ -1761,9 +2377,23 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: GoogleFonts.poppins(color: textColor, fontSize: 13.5, fontWeight: FontWeight.w700)),
+                    Text(
+                      title,
+                      style: GoogleFonts.poppins(
+                        color: textColor,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                     if (subtitle != null)
-                      Text(subtitle, style: GoogleFonts.poppins(color: secondaryText, fontSize: 9.8, height: 1.3)),
+                      Text(
+                        subtitle,
+                        style: GoogleFonts.poppins(
+                          color: secondaryText,
+                          fontSize: 9.8,
+                          height: 1.3,
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -1784,7 +2414,9 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
     final hasEnglish = _anyOn(englishAccess);
     return _card(
       title: 'Learning mode',
-      subtitle: _isOnline ? 'Live audio classes in the app' : 'Classes at the centre • GPS check-in',
+      subtitle: _isOnline
+          ? 'Live audio classes in the app'
+          : 'Classes at the centre • GPS check-in',
       icon: Icons.tune_rounded,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1794,10 +2426,16 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
               HapticFeedback.selectionClick();
               setState(() => selectedMode = 'online');
             }),
-            _segItem('Offline', Icons.location_on_rounded, !_isOnline, offlineColor, () {
-              HapticFeedback.selectionClick();
-              setState(() => selectedMode = 'offline');
-            }),
+            _segItem(
+              'Offline',
+              Icons.location_on_rounded,
+              !_isOnline,
+              offlineColor,
+              () {
+                HapticFeedback.selectionClick();
+                setState(() => selectedMode = 'offline');
+              },
+            ),
           ]),
           const SizedBox(height: 10),
 
@@ -1817,8 +2455,8 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
               title: !hasEnglish
                   ? 'Section'
                   : _hasSection
-                      ? 'Section $selectedSection'
-                      : 'No section yet',
+                  ? 'Section $selectedSection'
+                  : 'No section yet',
               subtitle: !hasEnglish
                   ? 'Chosen when you enable an English stage'
                   : 'Same section for all English stages',
@@ -1860,8 +2498,12 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
       action: 'Change',
       onTap: () async {
         if (_dirty) {
-          _snack('Save first', 'Save your other changes first, then change the mode.', amberText,
-              icon: Icons.save_rounded);
+          _snack(
+            'Save first',
+            'Save your other changes first, then change the mode.',
+            amberText,
+            icon: Icons.save_rounded,
+          );
           return;
         }
         final u = await showModeChangeSheet(context, _user);
@@ -1888,18 +2530,26 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
       icon: Icons.person_remove_alt_1_rounded,
       color: const Color(0xFFE45757),
       title: 'Student stopped coming?',
-      subtitle: 'Live class, tests, fees and alerts go off. Material stays open.',
+      subtitle:
+          'Live class, tests, fees and alerts go off. Material stays open.',
       action: 'Dropout',
       onTap: () async {
         if (_dirty) {
-          _snack('Save first', 'Save your other changes first.', amberText, icon: Icons.save_rounded);
+          _snack(
+            'Save first',
+            'Save your other changes first.',
+            amberText,
+            icon: Icons.save_rounded,
+          );
           return;
         }
         final ok = await showMarkDropoutSheet(context, _user);
         if (!ok || !mounted) return;
         final off = {for (var i = 1; i <= 7; i++) 'stage$i': false};
         // every stage the student had → study material only
-        Map<String, bool> keep(Map a, Map d) => {for (final k in stageKeys) k: a[k] == true || d[k] == true};
+        Map<String, bool> keep(Map a, Map d) => {
+          for (final k in stageKeys) k: a[k] == true || d[k] == true,
+        };
         setState(() {
           _user = {
             ..._user,
@@ -1957,13 +2607,33 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: GoogleFonts.poppins(color: textColor, fontSize: 11.5, fontWeight: FontWeight.w700)),
-                  Text(subtitle, style: GoogleFonts.poppins(color: secondaryText, fontSize: 9.5)),
+                  Text(
+                    title,
+                    style: GoogleFonts.poppins(
+                      color: textColor,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.poppins(
+                      color: secondaryText,
+                      fontSize: 9.5,
+                    ),
+                  ),
                 ],
               ),
             ),
             if (action != null)
-              Text(action, style: GoogleFonts.poppins(color: color, fontSize: 11, fontWeight: FontWeight.w700)),
+              Text(
+                action,
+                style: GoogleFonts.poppins(
+                  color: color,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
           ],
         ),
       ),
@@ -1989,7 +2659,14 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
     );
   }
 
-  Widget _segItem(String title, IconData icon, bool selected, Color color, VoidCallback onTap, {String? badge}) {
+  Widget _segItem(
+    String title,
+    IconData icon,
+    bool selected,
+    Color color,
+    VoidCallback onTap, {
+    String? badge,
+  }) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -2005,26 +2682,45 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 15, color: selected ? Colors.white : secondaryText),
+              Icon(
+                icon,
+                size: 15,
+                color: selected ? Colors.white : secondaryText,
+              ),
               const SizedBox(width: 6),
               Flexible(
-                child: Text(title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.poppins(
-                        color: selected ? Colors.white : secondaryText, fontSize: 11, fontWeight: FontWeight.w700)),
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    color: selected ? Colors.white : secondaryText,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
               if (badge != null) ...[
                 const SizedBox(width: 6),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 1,
+                  ),
                   decoration: BoxDecoration(
-                    color: selected ? Colors.white.withOpacity(.22) : borderColor,
+                    color: selected
+                        ? Colors.white.withOpacity(.22)
+                        : borderColor,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Text(badge,
-                      style: GoogleFonts.poppins(
-                          color: selected ? Colors.white : secondaryText, fontSize: 9, fontWeight: FontWeight.w700)),
+                  child: Text(
+                    badge,
+                    style: GoogleFonts.poppins(
+                      color: selected ? Colors.white : secondaryText,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
               ],
             ],
@@ -2054,17 +2750,33 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
         tooltip: 'Refresh student counts',
         onPressed: loadingLoad ? null : _fetchClassLoad,
         icon: loadingLoad
-            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: blue))
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2, color: blue),
+              )
             : const Icon(Icons.refresh_rounded, color: secondaryText, size: 20),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _segmented([
-            _segItem('English', Icons.translate_rounded, isEnglish, navy, () => setState(() => showHindi = false),
-                badge: '$enCount/7'),
-            _segItem('Hindi', Icons.language_rounded, !isEnglish, blue, () => setState(() => showHindi = true),
-                badge: '$hiCount/7'),
+            _segItem(
+              'English',
+              Icons.translate_rounded,
+              isEnglish,
+              navy,
+              () => setState(() => showHindi = false),
+              badge: '$enCount/7',
+            ),
+            _segItem(
+              'Hindi',
+              Icons.language_rounded,
+              !isEnglish,
+              blue,
+              () => setState(() => showHindi = true),
+              badge: '$hiCount/7',
+            ),
           ]),
           if (isEnglish && _isOnline && enCount > 0 && !_hasSection) ...[
             const SizedBox(height: 10),
@@ -2079,26 +2791,32 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
           ],
           _promoteBar(isEnglish),
           const SizedBox(height: 12),
-          LayoutBuilder(builder: (ctx, c) {
-            final twoCols = c.maxWidth >= 640;
-            final tiles = stageKeys.map((k) => _stageTile(isEnglish, k)).toList();
-            if (!twoCols) {
-              return Column(
-                children: [
-                  for (int i = 0; i < tiles.length; i++) ...[
-                    tiles[i],
-                    if (i != tiles.length - 1) const SizedBox(height: 8),
+          LayoutBuilder(
+            builder: (ctx, c) {
+              final twoCols = c.maxWidth >= 640;
+              final tiles = stageKeys
+                  .map((k) => _stageTile(isEnglish, k))
+                  .toList();
+              if (!twoCols) {
+                return Column(
+                  children: [
+                    for (int i = 0; i < tiles.length; i++) ...[
+                      tiles[i],
+                      if (i != tiles.length - 1) const SizedBox(height: 8),
+                    ],
                   ],
-                ],
+                );
+              }
+              final w = (c.maxWidth - 10) / 2;
+              return Wrap(
+                spacing: 10,
+                runSpacing: 8,
+                children: tiles
+                    .map((t) => SizedBox(width: w, child: t))
+                    .toList(),
               );
-            }
-            final w = (c.maxWidth - 10) / 2;
-            return Wrap(
-              spacing: 10,
-              runSpacing: 8,
-              children: tiles.map((t) => SizedBox(width: w, child: t)).toList(),
-            );
-          }),
+            },
+          ),
           if (anyOn) ...[
             const SizedBox(height: 6),
             Align(
@@ -2106,8 +2824,14 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
               child: TextButton.icon(
                 onPressed: () => _turnAllOff(isEnglish),
                 icon: const Icon(Icons.block_rounded, size: 14, color: red),
-                label: Text('Turn off all ${isEnglish ? 'English' : 'Hindi'} stages',
-                    style: GoogleFonts.poppins(color: red, fontSize: 10.5, fontWeight: FontWeight.w700)),
+                label: Text(
+                  'Turn off all ${isEnglish ? 'English' : 'Hindi'} stages',
+                  style: GoogleFonts.poppins(
+                    color: red,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
             ),
           ],
@@ -2147,14 +2871,29 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Stage $no',
-                        style: GoogleFonts.poppins(color: textColor, fontSize: 12, fontWeight: FontWeight.w700)),
-                    Text('Locked', style: GoogleFonts.poppins(color: secondaryText, fontSize: 9.5)),
+                    Text(
+                      'Stage $no',
+                      style: GoogleFonts.poppins(
+                        color: textColor,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      'Locked',
+                      style: GoogleFonts.poppins(
+                        color: secondaryText,
+                        fontSize: 9.5,
+                      ),
+                    ),
                   ],
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: cardBg,
                   borderRadius: BorderRadius.circular(9),
@@ -2165,7 +2904,14 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
                   children: [
                     Icon(Icons.add_rounded, size: 14, color: accent),
                     const SizedBox(width: 3),
-                    Text('Enable', style: GoogleFonts.poppins(color: accent, fontSize: 10, fontWeight: FontWeight.w700)),
+                    Text(
+                      'Enable',
+                      style: GoogleFonts.poppins(
+                        color: accent,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -2182,11 +2928,18 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
     final needsSection = _needsSection(isEnglish);
 
     // counts INCLUDING this student
-    final secN = needsSection && _hasSection ? _sectionCount(load, selectedSection) + 1 : 0;
+    final secN = needsSection && _hasSection
+        ? _sectionCount(load, selectedSection) + 1
+        : 0;
     final classN = timing.isEmpty
         ? 0
-        : (needsSection && _hasSection ? _classCount(load, selectedSection, timing) : _timingCount(load, timing)) + 1;
-    final trainer = needsSection && _hasSection ? _trainerFor(isEnglish, key, selectedSection) : _trainerFor(isEnglish, key, 'all');
+        : (needsSection && _hasSection
+                  ? _classCount(load, selectedSection, timing)
+                  : _timingCount(load, timing)) +
+              1;
+    final trainer = needsSection && _hasSection
+        ? _trainerFor(isEnglish, key, selectedSection)
+        : _trainerFor(isEnglish, key, 'all');
 
     return InkWell(
       borderRadius: BorderRadius.circular(13),
@@ -2208,15 +2961,26 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
                 children: [
                   Row(
                     children: [
-                      Text('Stage $no',
-                          style: GoogleFonts.poppins(color: textColor, fontSize: 12, fontWeight: FontWeight.w700)),
+                      Text(
+                        'Stage $no',
+                        style: GoogleFonts.poppins(
+                          color: textColor,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                       if (trainer != null) ...[
                         const SizedBox(width: 6),
                         Flexible(
-                          child: Text('• $trainer',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.poppins(color: secondaryText, fontSize: 9.5)),
+                          child: Text(
+                            '• $trainer',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.poppins(
+                              color: secondaryText,
+                              fontSize: 9.5,
+                            ),
+                          ),
                         ),
                       ],
                     ],
@@ -2228,14 +2992,31 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
                     children: [
                       if (needsSection)
                         _hasSection
-                            ? _pill(Icons.groups_rounded, 'Section $selectedSection',
-                                hasLoad ? '$secN student${secN == 1 ? '' : 's'}' : null, accent)
-                            : _pill(Icons.warning_amber_rounded, 'No section', null, amberText),
+                            ? _pill(
+                                Icons.groups_rounded,
+                                'Section $selectedSection',
+                                hasLoad
+                                    ? '$secN student${secN == 1 ? '' : 's'}'
+                                    : null,
+                                accent,
+                              )
+                            : _pill(
+                                Icons.warning_amber_rounded,
+                                'No section',
+                                null,
+                                amberText,
+                              ),
                       timing.isEmpty
-                          ? _pill(Icons.schedule_rounded, 'Set timing', null, amberText)
+                          ? _pill(
+                              Icons.schedule_rounded,
+                              'Set timing',
+                              null,
+                              amberText,
+                            )
                           : _pill(
                               Icons.schedule_rounded,
-                              BatchSlots.shortOf(timing) + (ownTiming ? '' : ' (signup)'),
+                              BatchSlots.shortOf(timing) +
+                                  (ownTiming ? '' : ' (signup)'),
                               hasLoad ? '$classN in class' : null,
                               ownTiming ? accent : amberText,
                             ),
@@ -2277,22 +3058,33 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
     );
   }
 
-  Widget _promoteRow(bool isEnglish, String from, Map<String, dynamic> access, String lang) {
+  Widget _promoteRow(
+    bool isEnglish,
+    String from,
+    Map<String, dynamic> access,
+    String lang,
+  ) {
     final n = int.parse(_stageNo(from));
     final last = n >= 7;
     final nextAlreadyOn = !last && access['stage${n + 1}'] == true;
     return Padding(
       padding: const EdgeInsets.only(top: 10),
       child: _infoRow(
-        icon: last ? Icons.emoji_events_rounded : (nextAlreadyOn ? Icons.task_alt_rounded : Icons.trending_up_rounded),
+        icon: last
+            ? Icons.emoji_events_rounded
+            : (nextAlreadyOn
+                  ? Icons.task_alt_rounded
+                  : Icons.trending_up_rounded),
         color: green,
         title: last ? 'Finished Stage 7?' : 'Stage $n finished?',
         subtitle: last
             ? 'Complete the $lang course. All material stays open, no live class.'
             : nextAlreadyOn
-                ? 'Close the Stage $n class. Stage ${n + 1} stays as it is. Stage $n = material only.'
-                : 'Promote to Stage ${n + 1}. Stage $n becomes study material only.',
-        action: _promoting ? '…' : (last ? 'Complete' : (nextAlreadyOn ? 'Finish' : 'Promote')),
+            ? 'Close the Stage $n class. Stage ${n + 1} stays as it is. Stage $n = material only.'
+            : 'Promote to Stage ${n + 1}. Stage $n becomes study material only.',
+        action: _promoting
+            ? '…'
+            : (last ? 'Complete' : (nextAlreadyOn ? 'Finish' : 'Promote')),
         onTap: () => _promote(isEnglish, from),
       ),
     );
@@ -2301,38 +3093,67 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
   Future<void> _promote(bool isEnglish, String from) async {
     if (_promoting) return;
     if (_dirty) {
-      _snack('Save first', 'Save your other changes first.', amberText, icon: Icons.save_rounded);
+      _snack(
+        'Save first',
+        'Save your other changes first.',
+        amberText,
+        icon: Icons.save_rounded,
+      );
       return;
     }
     final n = int.parse(_stageNo(from));
     final lang = isEnglish ? 'English' : 'Hindi';
-    final nextAlreadyOn = n < 7 && (isEnglish ? englishAccess : hindiAccess)['stage${n + 1}'] == true;
+    final nextAlreadyOn =
+        n < 7 &&
+        (isEnglish ? englishAccess : hindiAccess)['stage${n + 1}'] == true;
     final ok = await Get.dialog<bool>(
       AlertDialog(
         backgroundColor: cardBg,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: Text(
-            n >= 7 ? 'Complete the course?' : (nextAlreadyOn ? 'Finish Stage $n?' : 'Promote to Stage ${n + 1}?'),
-            style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: textColor)),
+          n >= 7
+              ? 'Complete the course?'
+              : (nextAlreadyOn
+                    ? 'Finish Stage $n?'
+                    : 'Promote to Stage ${n + 1}?'),
+          style: GoogleFonts.poppins(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: textColor,
+          ),
+        ),
         content: Text(
           n >= 7
               ? '$_firstName finished $lang Stage 7.\n\n• No more live class or attendance\n• All study material stays open'
               : nextAlreadyOn
               ? '$_firstName finished $lang Stage $n.\n\n'
-                  '• Stage $n: only study material (no join class, no attendance)\n'
-                  '• Stage ${n + 1}: stays as it is (same timing)'
+                    '• Stage $n: only study material (no join class, no attendance)\n'
+                    '• Stage ${n + 1}: stays as it is (same timing)'
               : '$_firstName moves to $lang Stage ${n + 1}.\n\n'
-                  '• Stage ${n + 1}: live class, attendance, tests, reminders\n'
-                  '• Stage $n: only study material (no join class, no attendance)\n'
-                  '• Same class timing: ${BatchSlots.shortOf(_stageTiming(isEnglish, from))}',
-          style: GoogleFonts.poppins(fontSize: 12, height: 1.5, color: secondaryText),
+                    '• Stage ${n + 1}: live class, attendance, tests, reminders\n'
+                    '• Stage $n: only study material (no join class, no attendance)\n'
+                    '• Same class timing: ${BatchSlots.shortOf(_stageTiming(isEnglish, from))}',
+          style: GoogleFonts.poppins(
+            fontSize: 12,
+            height: 1.5,
+            color: secondaryText,
+          ),
         ),
         actions: [
-          TextButton(onPressed: () => Get.back(result: false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Get.back(result: false),
+            child: const Text('Cancel'),
+          ),
           ElevatedButton(
             onPressed: () => Get.back(result: true),
-            style: ElevatedButton.styleFrom(backgroundColor: green, foregroundColor: Colors.white, elevation: 0),
-            child: Text(n >= 7 ? 'Complete' : (nextAlreadyOn ? 'Finish' : 'Promote')),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: green,
+              foregroundColor: Colors.white,
+              elevation: 0,
+            ),
+            child: Text(
+              n >= 7 ? 'Complete' : (nextAlreadyOn ? 'Finish' : 'Promote'),
+            ),
           ),
         ],
       ),
@@ -2343,22 +3164,45 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
       final res = await http.post(
         Uri.parse(ApiEndpoints.promote),
         headers: ApiHeaders.json(),
-        body: jsonEncode({"userIds": [_userId], "language": lang, "stage": from}),
+        body: jsonEncode({
+          "userIds": [_userId],
+          "language": lang,
+          "stage": from,
+        }),
       );
       final body = jsonDecode(res.body);
-      final promoted = res.statusCode == 200 && body is Map && (body['promoted'] as List? ?? []).isNotEmpty;
+      final promoted =
+          res.statusCode == 200 &&
+          body is Map &&
+          (body['promoted'] as List? ?? []).isNotEmpty;
       if (promoted) {
-        _snack('Promoted 🎉', body['message']?.toString() ?? 'Done', green, icon: Icons.check_circle_rounded);
+        _snack(
+          'Promoted 🎉',
+          body['message']?.toString() ?? 'Done',
+          green,
+          icon: Icons.check_circle_rounded,
+        );
         await _reloadStudentNow();
         _fetchClassLoad();
       } else {
         final skipped = body is Map ? (body['skipped'] as List? ?? []) : [];
-        final why = skipped.isNotEmpty ? skipped.first['reason'] : (body is Map ? body['message'] : null);
-        _snack('Not promoted', (why ?? 'Could not promote (${res.statusCode})').toString(), red,
-            icon: Icons.error_outline_rounded);
+        final why = skipped.isNotEmpty
+            ? skipped.first['reason']
+            : (body is Map ? body['message'] : null);
+        _snack(
+          'Not promoted',
+          (why ?? 'Could not promote (${res.statusCode})').toString(),
+          red,
+          icon: Icons.error_outline_rounded,
+        );
       }
     } catch (e) {
-      _snack('Not promoted', 'Connection error: $e', red, icon: Icons.error_outline_rounded);
+      _snack(
+        'Not promoted',
+        'Connection error: $e',
+        red,
+        icon: Icons.error_outline_rounded,
+      );
     } finally {
       if (mounted) setState(() => _promoting = false);
     }
@@ -2368,7 +3212,9 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
   Future<void> _reloadStudentNow() async {
     try {
       final res = await http.get(
-        Uri.parse("${ApiEndpoints.baseUrl}/admin/student/$_userId?_t=${DateTime.now().millisecondsSinceEpoch}"),
+        Uri.parse(
+          "${ApiEndpoints.baseUrl}/admin/student/$_userId?_t=${DateTime.now().millisecondsSinceEpoch}",
+        ),
         headers: ApiHeaders.auth(),
       );
       if (!mounted || res.statusCode != 200) return;
@@ -2381,8 +3227,14 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
         _pendingRemote = null;
         _readFrom(fresh);
       });
-      final idx = adminController.usersList.indexWhere((x) => (x['_id'] ?? x['id']).toString() == _userId);
-      if (idx != -1) adminController.usersList[idx] = {...Map<String, dynamic>.from(adminController.usersList[idx]), ..._copy(u)};
+      final idx = adminController.usersList.indexWhere(
+        (x) => (x['_id'] ?? x['id']).toString() == _userId,
+      );
+      if (idx != -1)
+        adminController.usersList[idx] = {
+          ...Map<String, dynamic>.from(adminController.usersList[idx]),
+          ..._copy(u),
+        };
     } catch (e) {
       debugPrint('Reload student error: $e');
     }
@@ -2408,8 +3260,15 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
               width: 34,
               height: 34,
               alignment: Alignment.center,
-              decoration: BoxDecoration(color: green.withOpacity(.14), shape: BoxShape.circle),
-              child: const Icon(Icons.menu_book_rounded, color: green, size: 17),
+              decoration: BoxDecoration(
+                color: green.withOpacity(.14),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.menu_book_rounded,
+                color: green,
+                size: 17,
+              ),
             ),
             const SizedBox(width: 11),
             Expanded(
@@ -2417,10 +3276,22 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Stage $no · Finished',
-                      style: GoogleFonts.poppins(color: textColor, fontSize: 12, fontWeight: FontWeight.w700)),
-                  Text('Study material only — no live class',
-                      style: GoogleFonts.poppins(color: green, fontSize: 9.5, fontWeight: FontWeight.w600)),
+                  Text(
+                    'Stage $no · Finished',
+                    style: GoogleFonts.poppins(
+                      color: textColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    'Study material only — no live class',
+                    style: GoogleFonts.poppins(
+                      color: green,
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -2431,8 +3302,14 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
                 borderRadius: BorderRadius.circular(9),
                 border: Border.all(color: borderColor),
               ),
-              child: Text('Live again',
-                  style: GoogleFonts.poppins(color: secondaryText, fontSize: 10, fontWeight: FontWeight.w700)),
+              child: Text(
+                'Live again',
+                style: GoogleFonts.poppins(
+                  color: secondaryText,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ),
           ],
         ),
@@ -2441,33 +3318,62 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
   }
 
   Widget _stageBadge(String no, bool on, Color accent) => Container(
-        width: 34,
-        height: 34,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: on ? accent : cardBg,
-          shape: BoxShape.circle,
-          border: Border.all(color: on ? accent : borderColor),
-        ),
-        child: on
-            ? const Icon(Icons.check_rounded, color: Colors.white, size: 17)
-            : Text(no.padLeft(2, '0'),
-                style: GoogleFonts.poppins(color: secondaryText, fontSize: 10, fontWeight: FontWeight.w700)),
-      );
+    width: 34,
+    height: 34,
+    alignment: Alignment.center,
+    decoration: BoxDecoration(
+      color: on ? accent : cardBg,
+      shape: BoxShape.circle,
+      border: Border.all(color: on ? accent : borderColor),
+    ),
+    child: on
+        ? const Icon(Icons.check_rounded, color: Colors.white, size: 17)
+        : Text(
+            no.padLeft(2, '0'),
+            style: GoogleFonts.poppins(
+              color: secondaryText,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+  );
 
   Widget _pill(IconData icon, String label, String? count, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-      decoration: BoxDecoration(color: color.withOpacity(.10), borderRadius: BorderRadius.circular(7)),
+      decoration: BoxDecoration(
+        color: color.withOpacity(.10),
+        borderRadius: BorderRadius.circular(7),
+      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 11, color: color),
           const SizedBox(width: 4),
-          Text(label, style: GoogleFonts.poppins(color: color, fontSize: 9.5, fontWeight: FontWeight.w700)),
+          Text(
+            label,
+            style: GoogleFonts.poppins(
+              color: color,
+              fontSize: 9.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
           if (count != null) ...[
-            Text('  •  ', style: GoogleFonts.poppins(color: color.withOpacity(.5), fontSize: 9)),
-            Text(count, style: GoogleFonts.poppins(color: color.withOpacity(.85), fontSize: 9.5, fontWeight: FontWeight.w500)),
+            Text(
+              '  •  ',
+              style: GoogleFonts.poppins(
+                color: color.withOpacity(.5),
+                fontSize: 9,
+              ),
+            ),
+            Text(
+              count,
+              style: GoogleFonts.poppins(
+                color: color.withOpacity(.85),
+                fontSize: 9.5,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ],
         ],
       ),
@@ -2485,38 +3391,77 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
       accent: blue,
       child: Column(
         children: [
-          LayoutBuilder(builder: (context, constraints) {
-            final cards = [
-              _statCard('Sessions', '$totalLoggedSessions', navy, Icons.event_available_rounded),
-              _statCard('Learning time', '${(totalMinutesSpent / 60).toStringAsFixed(1)}h', blue, Icons.schedule_rounded),
-              _statCard('Attendance', '${attendanceRate.toStringAsFixed(0)}%', green, Icons.check_circle_outline_rounded),
-              _statCard('Avg. test', '${averageTestScore.toStringAsFixed(0)}%', offlineColor, Icons.assessment_rounded),
-            ];
-            if (constraints.maxWidth < 620) {
-              return Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: cards.map((c) => SizedBox(width: (constraints.maxWidth - 8) / 2, child: c)).toList(),
-              );
-            }
-            return Row(
-              children: [
-                for (int i = 0; i < cards.length; i++) ...[
-                  Expanded(child: cards[i]),
-                  if (i != cards.length - 1) const SizedBox(width: 8),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final cards = [
+                _statCard(
+                  'Sessions',
+                  '$totalLoggedSessions',
+                  navy,
+                  Icons.event_available_rounded,
+                ),
+                _statCard(
+                  'Learning time',
+                  '${(totalMinutesSpent / 60).toStringAsFixed(1)}h',
+                  blue,
+                  Icons.schedule_rounded,
+                ),
+                _statCard(
+                  'Attendance',
+                  '${attendanceRate.toStringAsFixed(0)}%',
+                  green,
+                  Icons.check_circle_outline_rounded,
+                ),
+                _statCard(
+                  'Avg. test',
+                  '${averageTestScore.toStringAsFixed(0)}%',
+                  offlineColor,
+                  Icons.assessment_rounded,
+                ),
+              ];
+              if (constraints.maxWidth < 620) {
+                return Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: cards
+                      .map(
+                        (c) => SizedBox(
+                          width: (constraints.maxWidth - 8) / 2,
+                          child: c,
+                        ),
+                      )
+                      .toList(),
+                );
+              }
+              return Row(
+                children: [
+                  for (int i = 0; i < cards.length; i++) ...[
+                    Expanded(child: cards[i]),
+                    if (i != cards.length - 1) const SizedBox(width: 8),
+                  ],
                 ],
-              ],
-            );
-          }),
+              );
+            },
+          ),
           const SizedBox(height: 14),
           Row(
             children: [
               Expanded(
-                child: Text('Test performance by stage',
-                    style: GoogleFonts.poppins(color: textColor, fontSize: 11.5, fontWeight: FontWeight.w700)),
+                child: Text(
+                  'Test performance by stage',
+                  style: GoogleFonts.poppins(
+                    color: textColor,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
               if (isLoadingAnalytics)
-                const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(color: blue, strokeWidth: 2)),
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(color: blue, strokeWidth: 2),
+                ),
             ],
           ),
           const SizedBox(height: 8),
@@ -2540,7 +3485,10 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
           Container(
             width: 30,
             height: 30,
-            decoration: BoxDecoration(color: color.withOpacity(.10), borderRadius: BorderRadius.circular(9)),
+            decoration: BoxDecoration(
+              color: color.withOpacity(.10),
+              borderRadius: BorderRadius.circular(9),
+            ),
             child: Icon(icon, color: color, size: 16),
           ),
           const SizedBox(width: 8),
@@ -2549,14 +3497,25 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(value,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.poppins(color: color, fontSize: 15, fontWeight: FontWeight.w700)),
-                Text(label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.poppins(color: secondaryText, fontSize: 8.8)),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    color: color,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    color: secondaryText,
+                    fontSize: 8.8,
+                  ),
+                ),
               ],
             ),
           ),
@@ -2570,7 +3529,10 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
       return Container(
         height: 100,
         alignment: Alignment.center,
-        decoration: BoxDecoration(color: subtle, borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(
+          color: subtle,
+          borderRadius: BorderRadius.circular(12),
+        ),
         child: const CircularProgressIndicator(color: blue, strokeWidth: 2),
       );
     }
@@ -2589,8 +3551,10 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
             const Icon(Icons.bar_chart_rounded, color: blue, size: 20),
             const SizedBox(width: 10),
             Expanded(
-              child: Text('No test results yet. Stage scores appear after a test.',
-                  style: GoogleFonts.poppins(color: secondaryText, fontSize: 10)),
+              child: Text(
+                'No test results yet. Stage scores appear after a test.',
+                style: GoogleFonts.poppins(color: secondaryText, fontSize: 10),
+              ),
             ),
           ],
         ),
@@ -2617,7 +3581,9 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
           final language = (result['language'] ?? 'English').toString();
           final score = (result['score'] as num? ?? 0).toInt();
           final total = (result['totalQuestions'] as num? ?? 1).toInt();
-          final pct = total > 0 ? (score / total).clamp(0.0, 1.0).toDouble() : 0.0;
+          final pct = total > 0
+              ? (score / total).clamp(0.0, 1.0).toDouble()
+              : 0.0;
           final barColor = pct >= .5 ? green : red;
 
           return SizedBox(
@@ -2625,8 +3591,14 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
             child: Column(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                Text('${(pct * 100).toStringAsFixed(0)}%',
-                    style: GoogleFonts.poppins(color: barColor, fontSize: 9, fontWeight: FontWeight.w700)),
+                Text(
+                  '${(pct * 100).toStringAsFixed(0)}%',
+                  style: GoogleFonts.poppins(
+                    color: barColor,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
                 const SizedBox(height: 4),
                 Expanded(
                   child: Align(
@@ -2645,16 +3617,31 @@ class _AdminUserControlScreenState extends State<AdminUserControlScreen> with Wi
                         heightFactor: pct.clamp(.08, 1.0).toDouble(),
                         alignment: Alignment.bottomCenter,
                         child: Container(
-                          decoration: BoxDecoration(color: barColor, borderRadius: BorderRadius.circular(6)),
+                          decoration: BoxDecoration(
+                            color: barColor,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
                 const SizedBox(height: 5),
-                Text(stage, style: GoogleFonts.poppins(color: textColor, fontSize: 8.5, fontWeight: FontWeight.w700)),
-                Text(language.isNotEmpty ? language[0] : 'E',
-                    style: GoogleFonts.poppins(color: secondaryText, fontSize: 7.5)),
+                Text(
+                  stage,
+                  style: GoogleFonts.poppins(
+                    color: textColor,
+                    fontSize: 8.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  language.isNotEmpty ? language[0] : 'E',
+                  style: GoogleFonts.poppins(
+                    color: secondaryText,
+                    fontSize: 7.5,
+                  ),
+                ),
               ],
             ),
           );

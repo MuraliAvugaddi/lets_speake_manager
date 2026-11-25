@@ -74,6 +74,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
   late TabController mainChannelTabController;
   int selectedStatusFilter = 0; // 0 = Access Granted, 1 = Pending Approval
+  // 🌐 Course split: 'all' | 'english' | 'hindi'
+  String _course = 'all';
 
   // 🔎 Applied filters (kept separately per tab: online / offline)
   final Map<String, _StudentFilter> _filters = {
@@ -359,6 +361,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     );
   }
 
+  // ---------------------------------------------------------------------
+  // 🌐 ENGLISH / HINDI STUDENTS
+  // Stages given (current or finished) decide the course; a new student with
+  // no stages yet is counted in the language chosen at sign-up.
+  // ---------------------------------------------------------------------
+  static bool _anyOn(dynamic m) => m is Map && m.values.any((v) => v == true);
+
+  Set<String> _coursesOf(dynamic user) {
+    final english = _anyOn(user['englishAccess']) || _anyOn(user['englishDone']);
+    final hindi = _anyOn(user['hindiAccess']) || _anyOn(user['hindiDone']);
+    if (english || hindi) return {if (english) 'english', if (hindi) 'hindi'};
+    final chosen = (user['language'] ?? '').toString().toLowerCase();
+    return {chosen == 'hindi' ? 'hindi' : 'english'};
+  }
+
+  bool _inCourse(dynamic user) => _course == 'all' || _coursesOf(user).contains(_course);
+
   bool _hasUserBeenGrantedAccess(dynamic user) {
     final eng = user['englishAccess'] as Map? ?? {};
     final hin = user['hindiAccess'] as Map? ?? {};
@@ -405,6 +424,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     final q = adminController.searchQuery.value.toLowerCase();
     return adminController.usersList.where((user) {
       if (user['mode']?.toString().toLowerCase() != mode) return false;
+      if (!_inCourse(user)) return false; // 🌐 English / Hindi
       final hasAccess = _hasUserBeenGrantedAccess(user);
       if (grantedOnly ? !hasAccess : hasAccess) return false;
       if (q.isNotEmpty) {
@@ -809,6 +829,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           activeNotif: activeNotif,
         ),
         const SizedBox(height: 10),
+        _buildCourseSwitcher(mode, controller),
+        const SizedBox(height: 8),
         _buildAccessFilter(mode, controller, accentColor),
         const SizedBox(height: 10),
         _buildFilterToolbar(mode, accentColor, grantedOnly: selectedStatusFilter == 0),
@@ -1030,6 +1052,75 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     );
   }
 
+  // 🌐 [ All ] [ English ] [ Hindi ] — split the student list by course
+  Widget _buildCourseSwitcher(String mode, AdminController controller) {
+    return Obx(() {
+      final inMode = controller.usersList
+          .where((u) => u['mode']?.toString().toLowerCase() == mode)
+          .toList();
+      final english = inMode.where((u) => _coursesOf(u).contains('english')).length;
+      final hindi = inMode.where((u) => _coursesOf(u).contains('hindi')).length;
+
+      Widget chip(String key, String label, IconData icon, int count, Color color) {
+        final selected = _course == key;
+        return Expanded(
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: () => setState(() => _course = key),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(
+                  color: selected ? color : Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(icon, size: 14, color: selected ? Colors.white : color),
+                    const SizedBox(width: 5),
+                    Flexible(
+                      child: Text(
+                        '$label  $count',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          color: selected ? Colors.white : secondaryText,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      }
+
+      return Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: cardColor,
+          borderRadius: BorderRadius.circular(13),
+          border: Border.all(color: borderColor),
+        ),
+        child: Row(
+          children: [
+            chip('all', 'All', Icons.groups_rounded, inMode.length, accentPurple),
+            const SizedBox(width: 4),
+            chip('english', 'English', Icons.translate_rounded, english, accentBlue),
+            const SizedBox(width: 4),
+            chip('hindi', 'Hindi', Icons.language_rounded, hindi, hindiColor),
+          ],
+        ),
+      );
+    });
+  }
+
   Widget _buildAccessFilter(
     String mode,
     AdminController controller,
@@ -1040,6 +1131,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           .where(
             (user) =>
                 user['mode']?.toString().toLowerCase() == mode &&
+                _inCourse(user) &&
                 _hasUserBeenGrantedAccess(user),
           )
           .length;
@@ -1047,6 +1139,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           .where(
             (user) =>
                 user['mode']?.toString().toLowerCase() == mode &&
+                _inCourse(user) &&
                 !_hasUserBeenGrantedAccess(user),
           )
           .length;
@@ -1348,14 +1441,39 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                           ),
                         ),
                         const SizedBox(height: 2),
-                        Text(
-                          phone,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.poppins(
-                            color: secondaryText,
-                            fontSize: 9.5,
-                          ),
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                phone,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.poppins(
+                                  color: secondaryText,
+                                  fontSize: 9.5,
+                                ),
+                              ),
+                            ),
+                            // 🌐 course badges (English / Hindi)
+                            for (final c in _coursesOf(user)) ...[
+                              const SizedBox(width: 5),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                decoration: BoxDecoration(
+                                  color: (c == 'hindi' ? hindiColor : accentBlue).withOpacity(0.12),
+                                  borderRadius: BorderRadius.circular(5),
+                                ),
+                                child: Text(
+                                  c == 'hindi' ? 'Hindi' : 'English',
+                                  style: GoogleFonts.poppins(
+                                    color: c == 'hindi' ? hindiColor : accentBlue,
+                                    fontSize: 8,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ],
                     ),
