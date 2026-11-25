@@ -42,6 +42,13 @@ class _AdminFeeVerificationScreenState
   static const Color warning = Color(0xFFD97706);
   static const Color warningSoft = Color(0xFFFFF7ED);
 
+  // 💰 part payment ("half paid")
+  static const Color partial = Color(0xFF7C3AED);
+  static const Color partialSoft = Color(0xFFF3EEFF);
+
+  /// 💰 monthly fee for ONE course (both courses = 2 ×). Change here if the fee changes.
+  static const int feePerCourse = 2700;
+
   late TabController _tabController;
 
   bool isLoading = true;
@@ -65,7 +72,7 @@ class _AdminFeeVerificationScreenState
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this); // pending • half paid • history
     _tabController.addListener(() {
       if (mounted) setState(() {});
     });
@@ -168,7 +175,7 @@ class _AdminFeeVerificationScreenState
     }
   }
 
-  Future<void> verifyFee(String userId, String status) async {
+  Future<void> verifyFee(String userId, String status, {int? amount, int? totalFee}) async {
     if (isUpdating) return;
     setState(() => isUpdating = true);
 
@@ -176,13 +183,24 @@ class _AdminFeeVerificationScreenState
       final response = await http.post(
         Uri.parse(ApiEndpoints.verifyFee),
         headers: ApiHeaders.json(),
-        body: jsonEncode({'userId': userId, 'status': status}),
+        body: jsonEncode({
+          'userId': userId,
+          'status': status,
+          if (amount != null) 'amount': amount,
+          if (totalFee != null) 'totalFee': totalFee,
+        }),
       );
 
       if (response.statusCode == 200) {
+        String serverMsg = '';
+        try {
+          serverMsg = (jsonDecode(response.body)['message'] ?? '').toString();
+        } catch (_) {}
         Get.snackbar(
           'Updated',
-          status == 'verified' ? 'Payment approved successfully' : 'Payment rejected successfully',
+          status == 'verified'
+              ? (serverMsg.isNotEmpty ? serverMsg : 'Payment approved successfully')
+              : 'Payment rejected successfully',
           backgroundColor: status == 'verified' ? success : danger,
           colorText: Colors.white,
           snackPosition: SnackPosition.BOTTOM,
@@ -233,8 +251,24 @@ class _AdminFeeVerificationScreenState
   /// Course the fee is for (student picks it when uploading; old uploads are guessed by the server)
   String _language(dynamic student) {
     final v = (student['feeLanguage'] ?? '').toString().toLowerCase();
+    if (v == 'both') return 'Both'; // one payment for English + Hindi
     return v == 'hindi' ? 'Hindi' : 'English';
   }
+
+  /// "Both" counts for the English AND the Hindi filter
+  bool _isCourse(dynamic student, String course) {
+    final l = _language(student);
+    return l == course || l == 'Both';
+  }
+
+  int _money(dynamic v) => num.tryParse('${v ?? 0}')?.round() ?? 0;
+  int _paid(dynamic s) => _money(s['feeAmountPaid']);
+  int _due(dynamic s) => _money(s['feeAmountDue']);
+  int _left(dynamic s) => (_due(s) - _paid(s)).clamp(0, 1 << 30);
+
+  /// students who paid only part of this month's fee
+  List<dynamic> get halfPaidStudents =>
+      historyStudents.where((s) => _status(s) == 'partial').toList();
 
   bool _isOnline(dynamic student) {
     return (student['mode'] ?? 'online').toString().toLowerCase() == 'online';
@@ -261,6 +295,8 @@ class _AdminFeeVerificationScreenState
         return 'VERIFIED';
       case 'rejected':
         return 'REJECTED';
+      case 'partial':
+        return 'HALF PAID';
       case 'pending_verification':
       case 'pending':
         return 'PENDING';
@@ -300,7 +336,7 @@ class _AdminFeeVerificationScreenState
       final online = _isOnline(student);
       if (selectedFilter == 'online' && !online) return false;
       if (selectedFilter == 'offline' && online) return false;
-      if (selectedLanguage != 'all' && _language(student) != selectedLanguage) return false;
+      if (selectedLanguage != 'all' && !_isCourse(student, selectedLanguage)) return false;
       if (isHistory && !_matchesDate(student)) return false;
       if (!_matchesSearch(student)) return false;
       return true;
@@ -314,6 +350,8 @@ class _AdminFeeVerificationScreenState
         return success;
       case 'rejected':
         return danger;
+      case 'partial':
+        return partial;
       default:
         return warning;
     }
@@ -326,6 +364,8 @@ class _AdminFeeVerificationScreenState
         return successSoft;
       case 'rejected':
         return dangerSoft;
+      case 'partial':
+        return partialSoft;
       default:
         return warningSoft;
     }
@@ -456,8 +496,9 @@ class _AdminFeeVerificationScreenState
         labelStyle: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: isMobile ? 9.5 : 11),
         unselectedLabelStyle: GoogleFonts.poppins(fontWeight: FontWeight.w500, fontSize: isMobile ? 9.5 : 11),
         tabs: [
-          Tab(height: 32, text: 'Pending Review (${pendingStudents.length})'),
-          Tab(height: 32, text: 'Accounting History (${historyStudents.length})'),
+          Tab(height: 32, text: 'Pending (${pendingStudents.length})'),
+          Tab(height: 32, text: 'Half Paid (${halfPaidStudents.length})'),
+          Tab(height: 32, text: 'History (${historyStudents.length})'),
         ],
       ),
     );
@@ -465,9 +506,11 @@ class _AdminFeeVerificationScreenState
 
   // 🇬🇧 English / 🇮🇳 Hindi split
   Widget _buildLanguageBar(bool isMobile) {
-    final list = _tabController.index == 0 ? pendingStudents : historyStudents;
-    final en = list.where((s) => _language(s) == 'English').length;
-    final hi = list.where((s) => _language(s) == 'Hindi').length;
+    final list = _tabController.index == 0
+        ? pendingStudents
+        : (_tabController.index == 1 ? halfPaidStudents : historyStudents);
+    final en = list.where((s) => _isCourse(s, 'English')).length;
+    final hi = list.where((s) => _isCourse(s, 'Hindi')).length;
 
     Widget seg(String value, String label, int count, Color color) {
       final selected = selectedLanguage == value;
@@ -540,7 +583,7 @@ class _AdminFeeVerificationScreenState
   }
 
   Widget _buildFilterSection(BuildContext context, bool isMobile) {
-    final showDateFilter = _tabController.index == 1;
+    final showDateFilter = _tabController.index == 2;
 
     return Container(
       padding: EdgeInsets.all(isMobile ? 6 : 7),
@@ -697,7 +740,109 @@ class _AdminFeeVerificationScreenState
     );
   }
 
+  /// ✅ Approve → how much money is in this screenshot? (full or part payment)
+  Future<void> _approveWithAmount(dynamic student) async {
+    final name = _studentName(student);
+    final courses = _language(student) == 'Both' ? 2 : 1;
+    final paidBefore = _paid(student);
+    final total0 = _due(student) > 0 ? _due(student) : feePerCourse * courses;
+    final totalCtrl = TextEditingController(text: '$total0');
+    final amountCtrl = TextEditingController(text: '${(total0 - paidBefore).clamp(0, 1 << 30)}');
+
+    final ok = await Get.dialog<bool>(
+      StatefulBuilder(
+        builder: (context, setD) {
+          final total = int.tryParse(totalCtrl.text.trim()) ?? 0;
+          final amount = int.tryParse(amountCtrl.text.trim()) ?? 0;
+          final paidNow = paidBefore + amount;
+          final left = (total - paidNow).clamp(0, 1 << 30);
+          final valid = amount > 0 && total > 0;
+          final isPart = valid && paidNow < total;
+
+          InputDecoration deco(String label) => InputDecoration(
+            labelText: label,
+            prefixText: '₹ ',
+            labelStyle: GoogleFonts.poppins(fontSize: 12.5, color: textSecondary),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          );
+
+          return AlertDialog(
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Text('Approve payment • $name', style: GoogleFonts.poppins(color: textPrimary, fontWeight: FontWeight.w700, fontSize: 16)),
+            content: SizedBox(
+              width: 380,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (paidBefore > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Text('Already received this month: ₹$paidBefore', style: GoogleFonts.poppins(color: partial, fontSize: 12.5, fontWeight: FontWeight.w700)),
+                    ),
+                  TextField(
+                    controller: amountCtrl,
+                    keyboardType: TextInputType.number,
+                    autofocus: true,
+                    onChanged: (_) => setD(() {}),
+                    decoration: deco('Amount in this screenshot'),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: totalCtrl,
+                    keyboardType: TextInputType.number,
+                    onChanged: (_) => setD(() {}),
+                    decoration: deco(courses == 2 ? 'Total fee this month (both courses)' : 'Total fee this month'),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: !valid ? warningSoft : (isPart ? partialSoft : successSoft),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      !valid
+                          ? 'Enter the amount received.'
+                          : isPart
+                          ? '💰 Half paid — ₹$left left. The student gets a notification with the amount left.'
+                          : '✅ Fully paid (₹$paidNow of ₹$total).',
+                      style: GoogleFonts.poppins(
+                        color: !valid ? warning : (isPart ? partial : success),
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Get.back(result: false), child: Text('Cancel', style: GoogleFonts.poppins(color: textSecondary, fontWeight: FontWeight.w600))),
+              ElevatedButton(
+                onPressed: !valid ? null : () => Get.back(result: true),
+                style: ElevatedButton.styleFrom(backgroundColor: isPart ? partial : success, foregroundColor: Colors.white, elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                child: Text(isPart ? 'Save half payment' : 'Approve', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    final amount = int.tryParse(amountCtrl.text.trim()) ?? 0;
+    final total = int.tryParse(totalCtrl.text.trim()) ?? 0;
+    if (ok != true || amount <= 0 || total <= 0) return;
+    final userId = (student['_id'] ?? student['id'])?.toString();
+    if (userId == null || userId.isEmpty) return;
+    await verifyFee(userId, 'verified', amount: amount, totalFee: total);
+  }
+
   Future<void> _confirmVerification(dynamic student, String status) async {
+    if (status == 'verified') return _approveWithAmount(student);
     final name = _studentName(student);
     final isApprove = status == 'verified';
 
@@ -776,12 +921,27 @@ class _AdminFeeVerificationScreenState
                   runSpacing: 3,
                   children: [
                     _buildBadge(
-                      _language(student) == 'Hindi' ? '🇮🇳 HINDI' : '🇬🇧 ENGLISH',
-                      _language(student) == 'Hindi' ? const Color(0xFFEA580C) : const Color(0xFF0F5A87),
-                      _language(student) == 'Hindi' ? const Color(0xFFFFF1E6) : const Color(0xFFE6F0F7),
+                      _language(student) == 'Both'
+                          ? '🇬🇧🇮🇳 BOTH'
+                          : (_language(student) == 'Hindi' ? '🇮🇳 HINDI' : '🇬🇧 ENGLISH'),
+                      _language(student) == 'Both'
+                          ? const Color(0xFF0E9F8E)
+                          : (_language(student) == 'Hindi' ? const Color(0xFFEA580C) : const Color(0xFF0F5A87)),
+                      _language(student) == 'Both'
+                          ? const Color(0xFFE6F7F4)
+                          : (_language(student) == 'Hindi' ? const Color(0xFFFFF1E6) : const Color(0xFFE6F0F7)),
                     ),
                     _buildBadge(online ? 'ONLINE' : 'OFFLINE', online ? primary : warning, online ? primarySoft : warningSoft),
                     _buildBadge(_statusText(status), statusColor, statusBackground),
+                    // 💰 paid / left this month
+                    if (_paid(student) > 0 && _due(student) > 0)
+                      _buildBadge(
+                        _left(student) > 0
+                            ? '₹${_paid(student)} PAID • ₹${_left(student)} LEFT'
+                            : '₹${_paid(student)} PAID',
+                        _left(student) > 0 ? partial : success,
+                        _left(student) > 0 ? partialSoft : successSoft,
+                      ),
                   ],
                 ),
                 if (phone.isNotEmpty || submittedDate != null) ...[
@@ -842,13 +1002,16 @@ class _AdminFeeVerificationScreenState
     );
   }
 
-  Widget _buildStudentList(List<dynamic> list, {required bool isHistory}) {
+  Widget _buildStudentList(List<dynamic> list, {required bool isHistory, bool halfPaid = false}) {
     if (isLoading && list.isEmpty) {
       return const Center(child: CircularProgressIndicator(color: primary));
     }
-    final filtered = _filteredStudents(list, isHistory: isHistory);
+    // half-paid tab: no date filter (the whole month counts)
+    final filtered = _filteredStudents(list, isHistory: isHistory && !halfPaid);
     if (filtered.isEmpty) {
-      return _buildEmptyState(isHistory: isHistory);
+      return halfPaid
+          ? Center(child: Text('No half-paid students 🎉', style: GoogleFonts.poppins(color: textPrimary, fontSize: 15, fontWeight: FontWeight.w600)))
+          : _buildEmptyState(isHistory: isHistory);
     }
     return RefreshIndicator(
       color: primary,
@@ -886,9 +1049,9 @@ class _AdminFeeVerificationScreenState
   Widget _buildStats(bool isMobile, int onlineCount, int offlineCount, int showingCount) {
     final cards = [
       _buildStatCard(title: 'Pending', value: '${pendingStudents.length}', subtitle: 'Awaiting review', icon: Icons.pending_actions_rounded, iconColor: warning, iconBackground: warningSoft, isMobile: isMobile),
-      _buildStatCard(title: 'Pending English', value: '${pendingStudents.where((s) => _language(s) == 'English').length}', subtitle: 'English course', icon: Icons.translate_rounded, iconColor: const Color(0xFF0F5A87), iconBackground: const Color(0xFFE6F0F7), isMobile: isMobile),
-      _buildStatCard(title: 'Pending Hindi', value: '${pendingStudents.where((s) => _language(s) == 'Hindi').length}', subtitle: 'Hindi course', icon: Icons.language_rounded, iconColor: const Color(0xFFEA580C), iconBackground: const Color(0xFFFFF1E6), isMobile: isMobile),
-      _buildStatCard(title: 'Showing', value: '$showingCount', subtitle: 'Filtered list', icon: Icons.filter_alt_outlined, iconColor: success, iconBackground: successSoft, isMobile: isMobile),
+      _buildStatCard(title: 'Pending English', value: '${pendingStudents.where((s) => _isCourse(s, 'English')).length}', subtitle: 'English course', icon: Icons.translate_rounded, iconColor: const Color(0xFF0F5A87), iconBackground: const Color(0xFFE6F0F7), isMobile: isMobile),
+      _buildStatCard(title: 'Pending Hindi', value: '${pendingStudents.where((s) => _isCourse(s, 'Hindi')).length}', subtitle: 'Hindi course', icon: Icons.language_rounded, iconColor: const Color(0xFFEA580C), iconBackground: const Color(0xFFFFF1E6), isMobile: isMobile),
+      _buildStatCard(title: 'Half paid', value: '${halfPaidStudents.length}', subtitle: 'Part of the fee', icon: Icons.account_balance_wallet_outlined, iconColor: partial, iconBackground: partialSoft, isMobile: isMobile),
     ];
 
     if (isMobile) {
@@ -922,7 +1085,10 @@ class _AdminFeeVerificationScreenState
         final isMobile = constraints.maxWidth < 700;
         final pendingFiltered = _filteredStudents(pendingStudents, isHistory: false);
         final historyFiltered = _filteredStudents(historyStudents, isHistory: true);
-        final currentList = _tabController.index == 0 ? pendingFiltered : historyFiltered;
+        final halfFiltered = _filteredStudents(halfPaidStudents, isHistory: false);
+        final currentList = _tabController.index == 0
+            ? pendingFiltered
+            : (_tabController.index == 1 ? halfFiltered : historyFiltered);
 
         final onlineCount = historyStudents.where((student) => _isOnline(student)).length;
         final offlineCount = historyStudents.where((student) => !_isOnline(student)).length;
@@ -961,6 +1127,7 @@ class _AdminFeeVerificationScreenState
                                 controller: _tabController,
                                 children: [
                                   _buildStudentList(pendingStudents, isHistory: false),
+                                  _buildStudentList(halfPaidStudents, isHistory: true, halfPaid: true),
                                   _buildStudentList(historyStudents, isHistory: true),
                                 ],
                               ),

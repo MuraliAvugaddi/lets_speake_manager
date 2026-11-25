@@ -21,6 +21,7 @@ import 'package:lets_speake_manager/screens/AdminFeesManageScreen.dart';
 import 'package:lets_speake_manager/screens/AdminSectionMergeScreen.dart';
 import 'package:lets_speake_manager/screens/AdminHindiStageMergeScreen.dart';
 import 'package:lets_speake_manager/screens/AdminMaterialScreen.dart';
+import 'package:lets_speake_manager/screens/AdminStageMessageScreen.dart';
 
 import 'package:lets_speake_manager/screens/AdminTeacherAttendanceScreen.dart';
 
@@ -149,6 +150,15 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
       color: Color(0xFF0F5A87),
     ),
 
+    // 📨 STAGE MESSAGES (message to one stage / online / offline)
+    _AdminModule(
+      index: 20,
+      title: 'Stage Messages',
+      subtitle: 'Message one stage • online / offline',
+      icon: Icons.campaign_rounded,
+      color: Color(0xFF0E9F8E),
+    ),
+
     // FEE VERIFICATION
     _AdminModule(
       index: 7,
@@ -245,7 +255,7 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
   // ============================================================
 
   static const int pageCount =
-      20; // 19 = Study Material, 12 = App Update, 13 = Converted Students, 14 = Trainer Tests, 15 = Dropouts, 16 = Watch Live Classes, 17 = Promote Students, 18 = Hindi Stage Merge
+      21; // 20 = Stage Messages, 19 = Study Material, 12 = App Update, 13 = Converted Students, 14 = Trainer Tests, 15 = Dropouts, 16 = Watch Live Classes, 17 = Promote Students, 18 = Hindi Stage Merge
 
   final List<Widget?> _pages = List<Widget?>.filled(pageCount, null);
 
@@ -382,6 +392,10 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
       // 📚 study material PDFs
       case 19:
         return const AdminMaterialScreen();
+
+      // 📨 messages to one stage / online / offline
+      case 20:
+        return const AdminStageMessageScreen();
 
       default:
         return const SizedBox.shrink();
