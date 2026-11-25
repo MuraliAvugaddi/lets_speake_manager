@@ -28,28 +28,33 @@ class _StudentFilter {
     Set<String>? sections,
     Set<String>? fees,
     Set<String>? batches,
-  })  : langs = langs ?? <String>{},
-        stages = stages ?? <int>{},
-        sections = sections ?? <String>{},
-        fees = fees ?? <String>{},
-        batches = batches ?? <String>{};
+  }) : langs = langs ?? <String>{},
+       stages = stages ?? <int>{},
+       sections = sections ?? <String>{},
+       fees = fees ?? <String>{},
+       batches = batches ?? <String>{};
 
   _StudentFilter copy() => _StudentFilter(
-        langs: {...langs},
-        stages: {...stages},
-        sections: {...sections},
-        fees: {...fees},
-        batches: {...batches},
-      );
+    langs: {...langs},
+    stages: {...stages},
+    sections: {...sections},
+    fees: {...fees},
+    batches: {...batches},
+  );
 
-  int get count => langs.length + stages.length + sections.length + fees.length + batches.length;
+  int get count =>
+      langs.length +
+      stages.length +
+      sections.length +
+      fees.length +
+      batches.length;
   bool get isEmpty => count == 0;
 }
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
 
-  @override 
+  @override
   State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
 }
 
@@ -141,7 +146,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       if (results[0].statusCode == 200) {
         final data = jsonDecode(results[0].body);
         setState(() {
-          onlineNotification = (data['hasNotification'] == true &&
+          onlineNotification =
+              (data['hasNotification'] == true &&
                   data['targetMode']?.toString().toLowerCase() == 'online')
               ? data['message']
               : null;
@@ -150,7 +156,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       if (results[1].statusCode == 200) {
         final data = jsonDecode(results[1].body);
         setState(() {
-          offlineNotification = (data['hasNotification'] == true &&
+          offlineNotification =
+              (data['hasNotification'] == true &&
                   data['targetMode']?.toString().toLowerCase() == 'offline')
               ? data['message']
               : null;
@@ -369,14 +376,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   static bool _anyOn(dynamic m) => m is Map && m.values.any((v) => v == true);
 
   Set<String> _coursesOf(dynamic user) {
-    final english = _anyOn(user['englishAccess']) || _anyOn(user['englishDone']);
+    final english =
+        _anyOn(user['englishAccess']) || _anyOn(user['englishDone']);
     final hindi = _anyOn(user['hindiAccess']) || _anyOn(user['hindiDone']);
     if (english || hindi) return {if (english) 'english', if (hindi) 'hindi'};
     final chosen = (user['language'] ?? '').toString().toLowerCase();
     return {chosen == 'hindi' ? 'hindi' : 'english'};
   }
 
-  bool _inCourse(dynamic user) => _course == 'all' || _coursesOf(user).contains(_course);
+  bool _inCourse(dynamic user) =>
+      _course == 'all' || _coursesOf(user).contains(_course);
 
   bool _hasUserBeenGrantedAccess(dynamic user) {
     final eng = user['englishAccess'] as Map? ?? {};
@@ -390,32 +399,53 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   // 🔎 FILTER LOGIC
   // ---------------------------------------------------------------------
   bool _hasStage(dynamic user, String lang, int stage) {
-    final access = (lang == 'hindi' ? user['hindiAccess'] : user['englishAccess']) as Map? ?? {};
+    final access =
+        (lang == 'hindi' ? user['hindiAccess'] : user['englishAccess'])
+            as Map? ??
+        {};
     if (stage == 0) return access.values.any((v) => v == true);
     return access['stage$stage'] == true;
   }
 
-  String _sectionOf(dynamic user) => (user['onlineSection'] ?? '').toString().trim().toUpperCase();
+  String _sectionOf(dynamic user) =>
+      (user['onlineSection'] ?? '').toString().trim().toUpperCase();
   String _feeOf(dynamic user) =>
-      (user['feeStatus'] ?? 'unpaid').toString().toLowerCase() == 'paid' ? 'paid' : 'unpaid';
+      (user['feeStatus'] ?? 'unpaid').toString().toLowerCase() == 'paid'
+      ? 'paid'
+      : 'unpaid';
   String _batchOf(dynamic user) => (user['batchTime'] ?? '').toString().trim();
 
   /// Does [user] pass filter [f]? [skip] = ignore one group (used for the counts next to each option).
-  bool _passes(dynamic user, _StudentFilter f, String mode, {required bool grantedOnly, String? skip}) {
+  bool _passes(
+    dynamic user,
+    _StudentFilter f,
+    String mode, {
+    required bool grantedOnly,
+    String? skip,
+  }) {
     // language + stage (only for students who have access)
     if (grantedOnly && skip != 'course') {
-      final langs = f.langs.isEmpty ? const ['english', 'hindi'] : f.langs.toList();
+      final langs = f.langs.isEmpty
+          ? const ['english', 'hindi']
+          : f.langs.toList();
       final stages = f.stages.isEmpty ? const [0] : f.stages.toList();
       if (!f.langs.isEmpty || !f.stages.isEmpty) {
         final ok = langs.any((l) => stages.any((st) => _hasStage(user, l, st)));
         if (!ok) return false;
       }
     }
-    if (mode == 'online' && skip != 'section' && f.sections.isNotEmpty && !f.sections.contains(_sectionOf(user))) {
+    if (mode == 'online' &&
+        skip != 'section' &&
+        f.sections.isNotEmpty &&
+        !f.sections.contains(_sectionOf(user))) {
       return false;
     }
-    if (skip != 'fee' && f.fees.isNotEmpty && !f.fees.contains(_feeOf(user))) return false;
-    if (skip != 'batch' && f.batches.isNotEmpty && !f.batches.contains(_batchOf(user))) return false;
+    if (skip != 'fee' && f.fees.isNotEmpty && !f.fees.contains(_feeOf(user)))
+      return false;
+    if (skip != 'batch' &&
+        f.batches.isNotEmpty &&
+        !f.batches.contains(_batchOf(user)))
+      return false;
     return true;
   }
 
@@ -490,10 +520,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 height: isWide ? 38 : 34,
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [
-                      Color(0xFF0E466D),
-                      Color(0xFF155A88),
-                    ],
+                    colors: [Color(0xFF0E466D), Color(0xFF155A88)],
                   ),
                   borderRadius: BorderRadius.circular(9),
                 ),
@@ -539,8 +566,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 padding: const EdgeInsets.only(right: 4),
                 child: isWide
                     ? TextButton.icon(
-                        onPressed: () => Get.to(() => const AdminSpecialClassScreen()),
-                        icon: const Icon(Icons.campaign_rounded, size: 18, color: Color(0xFF7B2FF7)),
+                        onPressed: () =>
+                            Get.to(() => const AdminSpecialClassScreen()),
+                        icon: const Icon(
+                          Icons.campaign_rounded,
+                          size: 18,
+                          color: Color(0xFF7B2FF7),
+                        ),
                         label: Text(
                           'Special classes',
                           style: GoogleFonts.poppins(
@@ -550,18 +582,33 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                           ),
                         ),
                         style: TextButton.styleFrom(
-                          backgroundColor: const Color(0xFF7B2FF7).withOpacity(.08),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11)),
+                          backgroundColor: const Color(
+                            0xFF7B2FF7,
+                          ).withOpacity(.08),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(11),
+                          ),
                         ),
                       )
                     : IconButton(
                         tooltip: 'Special classes (rain day / principal)',
-                        onPressed: () => Get.to(() => const AdminSpecialClassScreen()),
+                        onPressed: () =>
+                            Get.to(() => const AdminSpecialClassScreen()),
                         padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(minWidth: 42, minHeight: 42),
+                        constraints: const BoxConstraints(
+                          minWidth: 42,
+                          minHeight: 42,
+                        ),
                         splashRadius: 20,
-                        icon: const Icon(Icons.campaign_rounded, color: Color(0xFF7B2FF7), size: 22),
+                        icon: const Icon(
+                          Icons.campaign_rounded,
+                          color: Color(0xFF7B2FF7),
+                          size: 22,
+                        ),
                       ),
               ),
               // 🎬 Posters & Reels → popup on the student home screen
@@ -570,7 +617,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 child: isWide
                     ? TextButton.icon(
                         onPressed: () => Get.to(() => const AdminPromoScreen()),
-                        icon: const Icon(Icons.perm_media_rounded, size: 18, color: Color(0xFFD6336C)),
+                        icon: const Icon(
+                          Icons.perm_media_rounded,
+                          size: 18,
+                          color: Color(0xFFD6336C),
+                        ),
                         label: Text(
                           'Posters & Reels',
                           style: GoogleFonts.poppins(
@@ -580,18 +631,32 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                           ),
                         ),
                         style: TextButton.styleFrom(
-                          backgroundColor: const Color(0xFFD6336C).withOpacity(.08),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11)),
+                          backgroundColor: const Color(
+                            0xFFD6336C,
+                          ).withOpacity(.08),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(11),
+                          ),
                         ),
                       )
                     : IconButton(
                         tooltip: 'Posters & Reels',
                         onPressed: () => Get.to(() => const AdminPromoScreen()),
                         padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(minWidth: 42, minHeight: 42),
+                        constraints: const BoxConstraints(
+                          minWidth: 42,
+                          minHeight: 42,
+                        ),
                         splashRadius: 20,
-                        icon: const Icon(Icons.perm_media_rounded, color: Color(0xFFD6336C), size: 22),
+                        icon: const Icon(
+                          Icons.perm_media_rounded,
+                          color: Color(0xFFD6336C),
+                          size: 22,
+                        ),
                       ),
               ),
               IconButton(
@@ -601,10 +666,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   _fetchActiveNotifications();
                 },
                 padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(
-                  minWidth: 42,
-                  minHeight: 42,
-                ),
+                constraints: const BoxConstraints(minWidth: 42, minHeight: 42),
                 splashRadius: 20,
                 icon: const Icon(
                   Icons.refresh_rounded,
@@ -822,18 +884,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
     return Column(
       children: [
-        _buildChannelAndAnnouncementRow(
+        // 🎛 ONE clear filter card: who (online / offline) → course → access
+        _buildFilterPanel(
           mode: mode,
           isOnline: isOnline,
+          controller: controller,
           accentColor: accentColor,
           activeNotif: activeNotif,
         ),
         const SizedBox(height: 10),
-        _buildCourseSwitcher(mode, controller),
-        const SizedBox(height: 8),
-        _buildAccessFilter(mode, controller, accentColor),
-        const SizedBox(height: 10),
-        _buildFilterToolbar(mode, accentColor, grantedOnly: selectedStatusFilter == 0),
+        _buildFilterToolbar(
+          mode,
+          accentColor,
+          grantedOnly: selectedStatusFilter == 0,
+        ),
         const SizedBox(height: 10),
         Expanded(
           child: _buildSubcategorizedList(
@@ -845,6 +909,349 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         ),
       ],
     );
+  }
+
+  // ============================================================
+  // 🎛 FILTER PANEL
+  //   Row 1: big Online / Offline tabs (with counts) + notice button
+  //   Row 2: COURSE pills (All • English • Hindi) and ACCESS pills
+  //          (Ready to learn • Needs access) — light pills, so the main
+  //          Online/Offline choice stays the strongest thing on screen
+  // ============================================================
+  static const Color _amberText = Color(0xFFB7791F); // readable yellow
+  static const Color _navyText = Color(0xFF0E466D);
+
+  Widget _buildFilterPanel({
+    required String mode,
+    required bool isOnline,
+    required AdminController controller,
+    required Color accentColor,
+    required String? activeNotif,
+  }) {
+    return Obx(() {
+      final users = controller.usersList;
+      String modeOf(dynamic u) => (u['mode'] ?? '').toString().toLowerCase();
+      final onlineN = users.where((u) => modeOf(u) == 'online').length;
+      final offlineN = users.where((u) => modeOf(u) == 'offline').length;
+      final inMode = users.where((u) => modeOf(u) == mode).toList();
+      final englishN = inMode
+          .where((u) => _coursesOf(u).contains('english'))
+          .length;
+      final hindiN = inMode
+          .where((u) => _coursesOf(u).contains('hindi'))
+          .length;
+      final inCourse = inMode.where(_inCourse).toList();
+      final readyN = inCourse.where(_hasUserBeenGrantedAccess).length;
+      final pendingN = inCourse.length - readyN;
+
+      // ---------- big mode tab ----------
+      Widget modeTab({
+        required String title,
+        required IconData icon,
+        required int count,
+        required bool selected,
+        required Color fill,
+        required Color onFill,
+        required VoidCallback onTap,
+      }) {
+        return Expanded(
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(12),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 10,
+                  horizontal: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: selected ? fill : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: selected
+                      ? [
+                          BoxShadow(
+                            color: fill.withOpacity(.30),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      icon,
+                      size: 16,
+                      color: selected ? onFill : secondaryText,
+                    ),
+                    const SizedBox(width: 7),
+                    Flexible(
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          color: selected ? onFill : secondaryText,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 7),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 1,
+                      ),
+                      decoration: BoxDecoration(
+                        color: selected ? onFill.withOpacity(.18) : borderColor,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '$count',
+                        style: GoogleFonts.poppins(
+                          color: selected ? onFill : secondaryText,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      }
+
+      // ---------- light pill ----------
+      Widget pill({
+        required String label,
+        required IconData icon,
+        required int count,
+        required bool selected,
+        required Color color,
+        required VoidCallback onTap,
+        bool alert = false, // red count = something to do
+      }) {
+        final showAlert = alert && count > 0;
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(20),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 160),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                color: selected ? color.withOpacity(.10) : cardColor,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: selected ? color : borderColor,
+                  width: selected ? 1.5 : 1,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    selected ? Icons.check_rounded : icon,
+                    size: 15,
+                    color: selected ? color : secondaryText,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    label,
+                    style: GoogleFonts.poppins(
+                      color: selected ? color : textColor,
+                      fontSize: 11.5,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 7),
+                  Container(
+                    constraints: const BoxConstraints(minWidth: 20),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 1,
+                    ),
+                    decoration: BoxDecoration(
+                      color: showAlert
+                          ? alertRed
+                          : (selected ? color : surfaceSubtle),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '$count',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.poppins(
+                        color: showAlert || selected
+                            ? Colors.white
+                            : secondaryText,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }
+
+      Widget group(String title, List<Widget> pills) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            title,
+            style: GoogleFonts.poppins(
+              color: secondaryText,
+              fontSize: 9.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.1,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Wrap(spacing: 8, runSpacing: 8, children: pills),
+        ],
+      );
+
+      final courseGroup = group('COURSE', [
+        pill(
+          label: 'All',
+          icon: Icons.groups_rounded,
+          count: inMode.length,
+          selected: _course == 'all',
+          color: accentPurple,
+          onTap: () => setState(() => _course = 'all'),
+        ),
+        pill(
+          label: 'English',
+          icon: Icons.translate_rounded,
+          count: englishN,
+          selected: _course == 'english',
+          color: accentBlue,
+          onTap: () => setState(() => _course = 'english'),
+        ),
+        pill(
+          label: 'Hindi',
+          icon: Icons.language_rounded,
+          count: hindiN,
+          selected: _course == 'hindi',
+          color: hindiColor,
+          onTap: () => setState(() => _course = 'hindi'),
+        ),
+      ]);
+      final accessGroup = group('ACCESS', [
+        pill(
+          label: 'Ready to learn',
+          icon: Icons.verified_outlined,
+          count: readyN,
+          selected: selectedStatusFilter == 0,
+          color: successGreen,
+          onTap: () => setState(() => selectedStatusFilter = 0),
+        ),
+        pill(
+          label: 'Needs access',
+          icon: Icons.lock_clock_outlined,
+          count: pendingN,
+          selected: selectedStatusFilter == 1,
+          color: _amberText,
+          alert: true,
+          onTap: () => setState(() => selectedStatusFilter = 1),
+        ),
+      ]);
+
+      return Container(
+        padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
+        decoration: BoxDecoration(
+          color: cardColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: borderColor),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: surfaceSubtle,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      children: [
+                        modeTab(
+                          title: 'Online',
+                          icon: Icons.wifi_rounded,
+                          count: onlineN,
+                          selected: isOnline,
+                          fill: accentBlue,
+                          onFill: Colors.white,
+                          onTap: () => mainChannelTabController.animateTo(0),
+                        ),
+                        const SizedBox(width: 4),
+                        modeTab(
+                          title: 'Offline',
+                          icon: Icons.location_on_rounded,
+                          count: offlineN,
+                          selected: !isOnline,
+                          fill: accentOrange,
+                          onFill:
+                              _navyText, // dark text on yellow (white was hard to read)
+                          onTap: () => mainChannelTabController.animateTo(1),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                _buildAnnouncementAction(
+                  mode: mode,
+                  activeNotif: activeNotif,
+                  accentColor: isOnline ? accentBlue : _amberText,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            LayoutBuilder(
+              builder: (context, c) {
+                if (c.maxWidth >= 720) {
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      courseGroup,
+                      Container(
+                        width: 1,
+                        height: 48,
+                        margin: const EdgeInsets.symmetric(horizontal: 16),
+                        color: borderColor,
+                      ),
+                      accessGroup,
+                    ],
+                  );
+                }
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    courseGroup,
+                    const SizedBox(height: 10),
+                    accessGroup,
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      );
+    });
   }
 
   Widget _buildChannelAndAnnouncementRow({
@@ -903,7 +1310,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               ),
               const SizedBox(width: 10),
               Text(
-                hasNotice ? 'Edit $displayMode Notice' : 'Post $displayMode Notice',
+                hasNotice
+                    ? 'Edit $displayMode Notice'
+                    : 'Post $displayMode Notice',
                 style: GoogleFonts.poppins(
                   color: textColor,
                   fontSize: 12,
@@ -1058,10 +1467,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       final inMode = controller.usersList
           .where((u) => u['mode']?.toString().toLowerCase() == mode)
           .toList();
-      final english = inMode.where((u) => _coursesOf(u).contains('english')).length;
+      final english = inMode
+          .where((u) => _coursesOf(u).contains('english'))
+          .length;
       final hindi = inMode.where((u) => _coursesOf(u).contains('hindi')).length;
 
-      Widget chip(String key, String label, IconData icon, int count, Color color) {
+      Widget chip(
+        String key,
+        String label,
+        IconData icon,
+        int count,
+        Color color,
+      ) {
         final selected = _course == key;
         return Expanded(
           child: Material(
@@ -1079,7 +1496,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(icon, size: 14, color: selected ? Colors.white : color),
+                    Icon(
+                      icon,
+                      size: 14,
+                      color: selected ? Colors.white : color,
+                    ),
                     const SizedBox(width: 5),
                     Flexible(
                       child: Text(
@@ -1110,9 +1531,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         ),
         child: Row(
           children: [
-            chip('all', 'All', Icons.groups_rounded, inMode.length, accentPurple),
+            chip(
+              'all',
+              'All',
+              Icons.groups_rounded,
+              inMode.length,
+              accentPurple,
+            ),
             const SizedBox(width: 4),
-            chip('english', 'English', Icons.translate_rounded, english, accentBlue),
+            chip(
+              'english',
+              'English',
+              Icons.translate_rounded,
+              english,
+              accentBlue,
+            ),
             const SizedBox(width: 4),
             chip('hindi', 'Hindi', Icons.language_rounded, hindi, hindiColor),
           ],
@@ -1244,9 +1677,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       }
 
       final f = _filters[mode]!;
-      final filteredList = _baseList(mode, grantedOnly)
-          .where((u) => _passes(u, f, mode, grantedOnly: grantedOnly))
-          .toList();
+      final filteredList = _baseList(
+        mode,
+        grantedOnly,
+      ).where((u) => _passes(u, f, mode, grantedOnly: grantedOnly)).toList();
 
       if (filteredList.isEmpty && _activeCount(mode, grantedOnly) > 0) {
         return _buildEmptyState(
@@ -1458,15 +1892,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                             for (final c in _coursesOf(user)) ...[
                               const SizedBox(width: 5),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 5,
+                                  vertical: 1,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: (c == 'hindi' ? hindiColor : accentBlue).withOpacity(0.12),
+                                  color:
+                                      (c == 'hindi' ? hindiColor : accentBlue)
+                                          .withOpacity(0.12),
                                   borderRadius: BorderRadius.circular(5),
                                 ),
                                 child: Text(
                                   c == 'hindi' ? 'Hindi' : 'English',
                                   style: GoogleFonts.poppins(
-                                    color: c == 'hindi' ? hindiColor : accentBlue,
+                                    color: c == 'hindi'
+                                        ? hindiColor
+                                        : accentBlue,
                                     fontSize: 8,
                                     fontWeight: FontWeight.w700,
                                   ),
@@ -1591,35 +2032,60 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   // ---------------------------------------------------------------------
   // 🔎 TOOLBAR: [ Filter (2) ]  [ Counts ]  +  applied filter pills
   // ---------------------------------------------------------------------
-  Widget _buildFilterToolbar(String mode, Color accentColor, {required bool grantedOnly}) {
+  Widget _buildFilterToolbar(
+    String mode,
+    Color accentColor, {
+    required bool grantedOnly,
+  }) {
     return Obx(() {
       final f = _filters[mode]!;
       final base = _baseList(mode, grantedOnly);
-      final shown = base.where((u) => _passes(u, f, mode, grantedOnly: grantedOnly)).length;
+      final shown = base
+          .where((u) => _passes(u, f, mode, grantedOnly: grantedOnly))
+          .length;
       final active = _activeCount(mode, grantedOnly);
 
       final pills = <Widget>[];
-      void addPill(String label, Color color, VoidCallback onRemove) => pills.add(_appliedPill(label, color, onRemove));
+      void addPill(String label, Color color, VoidCallback onRemove) =>
+          pills.add(_appliedPill(label, color, onRemove));
       if (grantedOnly) {
         for (final l in f.langs) {
-          addPill(l == 'english' ? 'English' : 'Hindi', l == 'english' ? accentBlue : hindiColor,
-              () => setState(() => f.langs.remove(l)));
+          addPill(
+            l == 'english' ? 'English' : 'Hindi',
+            l == 'english' ? accentBlue : hindiColor,
+            () => setState(() => f.langs.remove(l)),
+          );
         }
         for (final st in (f.stages.toList()..sort())) {
-          addPill('Stage $st', successGreen, () => setState(() => f.stages.remove(st)));
+          addPill(
+            'Stage $st',
+            successGreen,
+            () => setState(() => f.stages.remove(st)),
+          );
         }
       }
       if (mode == 'online') {
         for (final sec in (f.sections.toList()..sort())) {
-          addPill('Section $sec', accentBlue, () => setState(() => f.sections.remove(sec)));
+          addPill(
+            'Section $sec',
+            accentBlue,
+            () => setState(() => f.sections.remove(sec)),
+          );
         }
       }
       for (final fee in f.fees) {
-        addPill(fee == 'paid' ? 'Fee paid' : 'Fee unpaid', fee == 'paid' ? successGreen : alertRed,
-            () => setState(() => f.fees.remove(fee)));
+        addPill(
+          fee == 'paid' ? 'Fee paid' : 'Fee unpaid',
+          fee == 'paid' ? successGreen : alertRed,
+          () => setState(() => f.fees.remove(fee)),
+        );
       }
       for (final b in f.batches) {
-        addPill(b.isEmpty ? 'No timing' : b, accentPurple, () => setState(() => f.batches.remove(b)));
+        addPill(
+          b.isEmpty ? 'No timing' : b,
+          accentPurple,
+          () => setState(() => f.batches.remove(b)),
+        );
       }
 
       return Column(
@@ -1644,8 +2110,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               ),
               const Spacer(),
               Text(
-                active > 0 ? '$shown of ${base.length} students' : '${base.length} students',
-                style: GoogleFonts.poppins(color: secondaryText, fontSize: 11, fontWeight: FontWeight.w600),
+                active > 0
+                    ? '$shown of ${base.length} students'
+                    : '${base.length} students',
+                style: GoogleFonts.poppins(
+                  color: secondaryText,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
           ),
@@ -1659,13 +2131,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 children: [
                   for (final p in pills) ...[p, const SizedBox(width: 6)],
                   TextButton(
-                    onPressed: () => setState(() => _filters[mode] = _StudentFilter()),
+                    onPressed: () =>
+                        setState(() => _filters[mode] = _StudentFilter()),
                     style: TextButton.styleFrom(
                       padding: const EdgeInsets.symmetric(horizontal: 10),
                       minimumSize: const Size(0, 32),
                     ),
-                    child: Text('Clear all',
-                        style: GoogleFonts.poppins(color: alertRed, fontSize: 11, fontWeight: FontWeight.w700)),
+                    child: Text(
+                      'Clear all',
+                      style: GoogleFonts.poppins(
+                        color: alertRed,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -1702,18 +2181,32 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             children: [
               Icon(icon, size: 17, color: filled ? Colors.white : color),
               const SizedBox(width: 6),
-              Text(label,
-                  style: GoogleFonts.poppins(
-                      color: filled ? Colors.white : textColor, fontSize: 12, fontWeight: FontWeight.w700)),
+              Text(
+                label,
+                style: GoogleFonts.poppins(
+                  color: filled ? Colors.white : textColor,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
               if (badge > 0) ...[
                 const SizedBox(width: 6),
                 Container(
                   width: 20,
                   height: 20,
                   alignment: Alignment.center,
-                  decoration: BoxDecoration(color: goldenYellow, shape: BoxShape.circle),
-                  child: Text('$badge',
-                      style: GoogleFonts.poppins(color: textColor, fontSize: 10, fontWeight: FontWeight.w800)),
+                  decoration: BoxDecoration(
+                    color: goldenYellow,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text(
+                    '$badge',
+                    style: GoogleFonts.poppins(
+                      color: textColor,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                 ),
               ],
             ],
@@ -1734,7 +2227,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(label, style: GoogleFonts.poppins(color: color, fontSize: 11, fontWeight: FontWeight.w700)),
+          Text(
+            label,
+            style: GoogleFonts.poppins(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
           InkWell(
             onTap: () {
               HapticFeedback.selectionClick();
@@ -1762,9 +2262,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
     // groups shown on this tab
     final groups = <Map<String, dynamic>>[
-      if (grantedOnly) {'key': 'lang', 'title': 'Language', 'icon': Icons.translate_rounded},
-      if (grantedOnly) {'key': 'stage', 'title': 'Stage', 'icon': Icons.stairs_rounded},
-      if (isOnline) {'key': 'section', 'title': 'Section', 'icon': Icons.view_module_rounded},
+      if (grantedOnly)
+        {'key': 'lang', 'title': 'Language', 'icon': Icons.translate_rounded},
+      if (grantedOnly)
+        {'key': 'stage', 'title': 'Stage', 'icon': Icons.stairs_rounded},
+      if (isOnline)
+        {
+          'key': 'section',
+          'title': 'Section',
+          'icon': Icons.view_module_rounded,
+        },
       {'key': 'fee', 'title': 'Fee status', 'icon': Icons.payments_rounded},
       {'key': 'batch', 'title': 'Class timing', 'icon': Icons.schedule_rounded},
     ];
@@ -1797,59 +2304,112 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     Widget panel(BuildContext ctx, StateSetter setPanel, bool wide) {
       // how many students each option would give (other groups applied, own group ignored)
       int countWith(String skip, bool Function(dynamic u) test) => base
-          .where((u) => _passes(u, draft, mode, grantedOnly: grantedOnly, skip: skip) && test(u))
+          .where(
+            (u) =>
+                _passes(u, draft, mode, grantedOnly: grantedOnly, skip: skip) &&
+                test(u),
+          )
           .length;
-      final total = base.where((u) => _passes(u, draft, mode, grantedOnly: grantedOnly)).length;
+      final total = base
+          .where((u) => _passes(u, draft, mode, grantedOnly: grantedOnly))
+          .length;
 
-      void toggle<T>(Set<T> set, T v) => setPanel(() => set.contains(v) ? set.remove(v) : set.add(v));
+      void toggle<T>(Set<T> set, T v) =>
+          setPanel(() => set.contains(v) ? set.remove(v) : set.add(v));
 
       List<Widget> options() {
         switch (active) {
           case 'lang':
             return [
-              _optionTile('English', countWith('course', (u) {
-                final st = draft.stages.isEmpty ? [0] : draft.stages.toList();
-                return st.any((s) => _hasStage(u, 'english', s));
-              }), draft.langs.contains('english'), () => toggle(draft.langs, 'english'), accentBlue),
-              _optionTile('Hindi', countWith('course', (u) {
-                final st = draft.stages.isEmpty ? [0] : draft.stages.toList();
-                return st.any((s) => _hasStage(u, 'hindi', s));
-              }), draft.langs.contains('hindi'), () => toggle(draft.langs, 'hindi'), hindiColor),
+              _optionTile(
+                'English',
+                countWith('course', (u) {
+                  final st = draft.stages.isEmpty ? [0] : draft.stages.toList();
+                  return st.any((s) => _hasStage(u, 'english', s));
+                }),
+                draft.langs.contains('english'),
+                () => toggle(draft.langs, 'english'),
+                accentBlue,
+              ),
+              _optionTile(
+                'Hindi',
+                countWith('course', (u) {
+                  final st = draft.stages.isEmpty ? [0] : draft.stages.toList();
+                  return st.any((s) => _hasStage(u, 'hindi', s));
+                }),
+                draft.langs.contains('hindi'),
+                () => toggle(draft.langs, 'hindi'),
+                hindiColor,
+              ),
             ];
           case 'stage':
             return [
               for (int st = 1; st <= 7; st++)
-                _optionTile('Stage $st', countWith('course', (u) {
-                  final ls = draft.langs.isEmpty ? ['english', 'hindi'] : draft.langs.toList();
-                  return ls.any((l) => _hasStage(u, l, st));
-                }), draft.stages.contains(st), () => toggle(draft.stages, st), successGreen),
+                _optionTile(
+                  'Stage $st',
+                  countWith('course', (u) {
+                    final ls = draft.langs.isEmpty
+                        ? ['english', 'hindi']
+                        : draft.langs.toList();
+                    return ls.any((l) => _hasStage(u, l, st));
+                  }),
+                  draft.stages.contains(st),
+                  () => toggle(draft.stages, st),
+                  successGreen,
+                ),
             ];
           case 'section':
             return [
               for (final sec in _sections)
-                _optionTile('Section $sec', countWith('section', (u) => _sectionOf(u) == sec),
-                    draft.sections.contains(sec), () => toggle(draft.sections, sec), accentBlue),
+                _optionTile(
+                  'Section $sec',
+                  countWith('section', (u) => _sectionOf(u) == sec),
+                  draft.sections.contains(sec),
+                  () => toggle(draft.sections, sec),
+                  accentBlue,
+                ),
             ];
           case 'fee':
             return [
-              _optionTile('Paid', countWith('fee', (u) => _feeOf(u) == 'paid'), draft.fees.contains('paid'),
-                  () => toggle(draft.fees, 'paid'), successGreen),
-              _optionTile('Unpaid', countWith('fee', (u) => _feeOf(u) == 'unpaid'), draft.fees.contains('unpaid'),
-                  () => toggle(draft.fees, 'unpaid'), alertRed),
+              _optionTile(
+                'Paid',
+                countWith('fee', (u) => _feeOf(u) == 'paid'),
+                draft.fees.contains('paid'),
+                () => toggle(draft.fees, 'paid'),
+                successGreen,
+              ),
+              _optionTile(
+                'Unpaid',
+                countWith('fee', (u) => _feeOf(u) == 'unpaid'),
+                draft.fees.contains('unpaid'),
+                () => toggle(draft.fees, 'unpaid'),
+                alertRed,
+              ),
             ];
           default:
             if (batches.isEmpty) {
               return [
                 Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Text('No class timings yet', style: GoogleFonts.poppins(color: secondaryText, fontSize: 12)),
-                )
+                  child: Text(
+                    'No class timings yet',
+                    style: GoogleFonts.poppins(
+                      color: secondaryText,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
               ];
             }
             return [
               for (final b in batches)
-                _optionTile(b.isEmpty ? 'Not chosen' : b, countWith('batch', (u) => _batchOf(u) == b),
-                    draft.batches.contains(b), () => toggle(draft.batches, b), accentPurple),
+                _optionTile(
+                  b.isEmpty ? 'Not chosen' : b,
+                  countWith('batch', (u) => _batchOf(u) == b),
+                  draft.batches.contains(b),
+                  () => toggle(draft.batches, b),
+                  accentPurple,
+                ),
             ];
         }
       }
@@ -1867,24 +2427,42 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Filters',
-                          style: GoogleFonts.poppins(color: textColor, fontSize: 17, fontWeight: FontWeight.w700)),
-                      Text('${isOnline ? 'Online' : 'Offline'} • ${grantedOnly ? 'Ready to learn' : 'Needs access'}',
-                          style: GoogleFonts.poppins(color: secondaryText, fontSize: 10.5)),
+                      Text(
+                        'Filters',
+                        style: GoogleFonts.poppins(
+                          color: textColor,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      Text(
+                        '${isOnline ? 'Online' : 'Offline'} • ${grantedOnly ? 'Ready to learn' : 'Needs access'}',
+                        style: GoogleFonts.poppins(
+                          color: secondaryText,
+                          fontSize: 10.5,
+                        ),
+                      ),
                     ],
                   ),
                 ),
                 TextButton(
-                  onPressed: draft.isEmpty ? null : () => setPanel(() {
-                    draft.langs.clear();
-                    draft.stages.clear();
-                    draft.sections.clear();
-                    draft.fees.clear();
-                    draft.batches.clear();
-                  }),
-                  child: Text('Clear all',
-                      style: GoogleFonts.poppins(
-                          color: draft.isEmpty ? secondaryText : alertRed, fontSize: 12, fontWeight: FontWeight.w700)),
+                  onPressed: draft.isEmpty
+                      ? null
+                      : () => setPanel(() {
+                          draft.langs.clear();
+                          draft.stages.clear();
+                          draft.sections.clear();
+                          draft.fees.clear();
+                          draft.batches.clear();
+                        }),
+                  child: Text(
+                    'Clear all',
+                    style: GoogleFonts.poppins(
+                      color: draft.isEmpty ? secondaryText : alertRed,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
                 IconButton(
                   onPressed: () => Navigator.of(ctx).pop(),
@@ -1906,30 +2484,44 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                     children: [
                       for (final g in groups)
                         InkWell(
-                          onTap: () => setPanel(() => active = g['key'] as String),
+                          onTap: () =>
+                              setPanel(() => active = g['key'] as String),
                           child: Container(
                             padding: const EdgeInsets.fromLTRB(12, 15, 10, 15),
                             decoration: BoxDecoration(
-                              color: active == g['key'] ? cardColor : Colors.transparent,
+                              color: active == g['key']
+                                  ? cardColor
+                                  : Colors.transparent,
                               border: Border(
                                 left: BorderSide(
-                                  color: active == g['key'] ? accentPurple : Colors.transparent,
+                                  color: active == g['key']
+                                      ? accentPurple
+                                      : Colors.transparent,
                                   width: 4,
                                 ),
                               ),
                             ),
                             child: Row(
                               children: [
-                                Icon(g['icon'] as IconData,
-                                    size: 16, color: active == g['key'] ? accentPurple : secondaryText),
+                                Icon(
+                                  g['icon'] as IconData,
+                                  size: 16,
+                                  color: active == g['key']
+                                      ? accentPurple
+                                      : secondaryText,
+                                ),
                                 const SizedBox(width: 7),
                                 Expanded(
                                   child: Text(
                                     g['title'] as String,
                                     style: GoogleFonts.poppins(
-                                      color: active == g['key'] ? textColor : secondaryText,
+                                      color: active == g['key']
+                                          ? textColor
+                                          : secondaryText,
                                       fontSize: 12,
-                                      fontWeight: active == g['key'] ? FontWeight.w700 : FontWeight.w600,
+                                      fontWeight: active == g['key']
+                                          ? FontWeight.w700
+                                          : FontWeight.w600,
                                     ),
                                   ),
                                 ),
@@ -1938,10 +2530,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                                     width: 18,
                                     height: 18,
                                     alignment: Alignment.center,
-                                    decoration: BoxDecoration(color: accentPurple, shape: BoxShape.circle),
-                                    child: Text('${groupCount(g['key'] as String)}',
-                                        style: GoogleFonts.poppins(
-                                            color: Colors.white, fontSize: 9.5, fontWeight: FontWeight.w700)),
+                                    decoration: BoxDecoration(
+                                      color: accentPurple,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Text(
+                                      '${groupCount(g['key'] as String)}',
+                                      style: GoogleFonts.poppins(
+                                        color: Colors.white,
+                                        fontSize: 9.5,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
                                   ),
                               ],
                             ),
@@ -1961,8 +2561,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           ),
           // ---- footer: live result + apply
           Container(
-            padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + MediaQuery.of(ctx).padding.bottom),
-            decoration: const BoxDecoration(border: Border(top: BorderSide(color: borderColor))),
+            padding: EdgeInsets.fromLTRB(
+              16,
+              12,
+              16,
+              12 + MediaQuery.of(ctx).padding.bottom,
+            ),
+            decoration: const BoxDecoration(
+              border: Border(top: BorderSide(color: borderColor)),
+            ),
             child: Row(
               children: [
                 Expanded(
@@ -1970,9 +2577,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('$total',
-                          style: GoogleFonts.poppins(color: textColor, fontSize: 18, fontWeight: FontWeight.w800)),
-                      Text('students found', style: GoogleFonts.poppins(color: secondaryText, fontSize: 10.5)),
+                      Text(
+                        '$total',
+                        style: GoogleFonts.poppins(
+                          color: textColor,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      Text(
+                        'students found',
+                        style: GoogleFonts.poppins(
+                          color: secondaryText,
+                          fontSize: 10.5,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -1987,10 +2606,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                       backgroundColor: accentPurple,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(horizontal: 26),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
-                    child: Text('Show $total students',
-                        style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700)),
+                    child: Text(
+                      'Show $total students',
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -2017,13 +2643,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             child: SizedBox(
               width: 470,
               height: double.infinity,
-              child: SafeArea(child: StatefulBuilder(builder: (c, sp) => panel(c, sp, true))),
+              child: SafeArea(
+                child: StatefulBuilder(builder: (c, sp) => panel(c, sp, true)),
+              ),
             ),
           ),
         ),
         transitionBuilder: (ctx, anim, _, child) => SlideTransition(
-          position: Tween(begin: const Offset(1, 0), end: Offset.zero)
-              .animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
+          position: Tween(
+            begin: const Offset(1, 0),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
           child: child,
         ),
       );
@@ -2032,7 +2662,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         context: context,
         isScrollControlled: true,
         backgroundColor: cardColor,
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+        ),
         builder: (ctx) => SizedBox(
           height: MediaQuery.of(ctx).size.height * .86,
           child: StatefulBuilder(builder: (c, sp) => panel(c, sp, false)),
@@ -2043,14 +2675,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
   /// "05:30 AM - 07:00 AM" → minutes from midnight (for sorting)
   int _batchSortKey(String b) {
-    final m = RegExp(r'(\d{1,2}):(\d{2})\s*([AP]M)', caseSensitive: false).firstMatch(b);
+    final m = RegExp(
+      r'(\d{1,2}):(\d{2})\s*([AP]M)',
+      caseSensitive: false,
+    ).firstMatch(b);
     if (m == null) return 99999;
     var h = int.parse(m.group(1)!) % 12;
     if (m.group(3)!.toUpperCase() == 'PM') h += 12;
     return h * 60 + int.parse(m.group(2)!);
   }
 
-  Widget _optionTile(String label, int count, bool selected, VoidCallback onTap, Color color) {
+  Widget _optionTile(
+    String label,
+    int count,
+    bool selected,
+    VoidCallback onTap,
+    Color color,
+  ) {
     return InkWell(
       onTap: () {
         HapticFeedback.selectionClick();
@@ -2067,23 +2708,38 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               decoration: BoxDecoration(
                 color: selected ? color : Colors.transparent,
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: selected ? color : const Color(0xFFB7C9D6), width: 1.6),
+                border: Border.all(
+                  color: selected ? color : const Color(0xFFB7C9D6),
+                  width: 1.6,
+                ),
               ),
-              child: selected ? const Icon(Icons.check_rounded, size: 16, color: Colors.white) : null,
+              child: selected
+                  ? const Icon(
+                      Icons.check_rounded,
+                      size: 16,
+                      color: Colors.white,
+                    )
+                  : null,
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(label,
-                  style: GoogleFonts.poppins(
-                      color: count == 0 && !selected ? secondaryText : textColor,
-                      fontSize: 13,
-                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500)),
-            ),
-            Text('$count',
+              child: Text(
+                label,
                 style: GoogleFonts.poppins(
-                    color: count == 0 ? const Color(0xFFB7C9D6) : secondaryText,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700)),
+                  color: count == 0 && !selected ? secondaryText : textColor,
+                  fontSize: 13,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+            ),
+            Text(
+              '$count',
+              style: GoogleFonts.poppins(
+                color: count == 0 ? const Color(0xFFB7C9D6) : secondaryText,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ],
         ),
       ),
@@ -2095,15 +2751,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   // ---------------------------------------------------------------------
   void _openBreakdownSheet(String mode) {
     final isOnline = mode == 'online';
-    final all = adminController.usersList.where((u) => u['mode']?.toString().toLowerCase() == mode).toList();
+    final all = adminController.usersList
+        .where((u) => u['mode']?.toString().toLowerCase() == mode)
+        .toList();
     final ready = all.where(_hasUserBeenGrantedAccess).toList();
 
     int count(String lang, int stage, {String? section}) => ready.where((u) {
-          final ok = lang == 'all'
-              ? (_hasStage(u, 'english', stage) || _hasStage(u, 'hindi', stage))
-              : _hasStage(u, lang, stage);
-          return ok && (section == null || _sectionOf(u) == section);
-        }).length;
+      final ok = lang == 'all'
+          ? (_hasStage(u, 'english', stage) || _hasStage(u, 'hindi', stage))
+          : _hasStage(u, lang, stage);
+      return ok && (section == null || _sectionOf(u) == section);
+    }).length;
 
     void pick({String? lang, int? stage, String? section}) {
       Get.back();
@@ -2117,64 +2775,92 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       });
     }
 
-    Widget cell(String text, {VoidCallback? onTap, bool bold = false, Color? color, int flex = 2}) => Expanded(
-          flex: flex,
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(8),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              child: Text(
-                text,
-                textAlign: flex == 3 ? TextAlign.left : TextAlign.center,
-                style: GoogleFonts.poppins(
-                  color: color ?? textColor,
-                  fontSize: 12.5,
-                  fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
+    Widget cell(
+      String text, {
+      VoidCallback? onTap,
+      bool bold = false,
+      Color? color,
+      int flex = 2,
+    }) => Expanded(
+      flex: flex,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Text(
+            text,
+            textAlign: flex == 3 ? TextAlign.left : TextAlign.center,
+            style: GoogleFonts.poppins(
+              color: color ?? textColor,
+              fontSize: 12.5,
+              fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    Widget header(List<String> cols) => Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: softSurface,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          for (int i = 0; i < cols.length; i++)
+            Expanded(
+              flex: i == 0 ? 3 : 2,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 9),
+                child: Text(
+                  cols[i],
+                  textAlign: i == 0 ? TextAlign.left : TextAlign.center,
+                  style: GoogleFonts.poppins(
+                    color: secondaryText,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ),
-          ),
-        );
-
-    Widget header(List<String> cols) => Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          decoration: BoxDecoration(color: softSurface, borderRadius: BorderRadius.circular(10)),
-          child: Row(children: [
-            for (int i = 0; i < cols.length; i++)
-              Expanded(
-                flex: i == 0 ? 3 : 2,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 9),
-                  child: Text(cols[i],
-                      textAlign: i == 0 ? TextAlign.left : TextAlign.center,
-                      style: GoogleFonts.poppins(color: secondaryText, fontSize: 10.5, fontWeight: FontWeight.w700)),
-                ),
-              ),
-          ]),
-        );
+        ],
+      ),
+    );
 
     Widget row(List<Widget> cells, {bool total = false}) => Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          decoration: BoxDecoration(
-            color: total ? accentPurple.withOpacity(.06) : null,
-            border: const Border(bottom: BorderSide(color: borderColor)),
-          ),
-          child: Row(children: cells),
-        );
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: total ? accentPurple.withOpacity(.06) : null,
+        border: const Border(bottom: BorderSide(color: borderColor)),
+      ),
+      child: Row(children: cells),
+    );
 
     Widget title(String t, IconData icon) => Padding(
-          padding: const EdgeInsets.only(top: 18, bottom: 8),
-          child: Row(children: [
-            Icon(icon, size: 17, color: accentPurple),
-            const SizedBox(width: 6),
-            Text(t, style: GoogleFonts.poppins(color: textColor, fontSize: 13.5, fontWeight: FontWeight.w700)),
-          ]),
-        );
+      padding: const EdgeInsets.only(top: 18, bottom: 8),
+      child: Row(
+        children: [
+          Icon(icon, size: 17, color: accentPurple),
+          const SizedBox(width: 6),
+          Text(
+            t,
+            style: GoogleFonts.poppins(
+              color: textColor,
+              fontSize: 13.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
 
     Get.bottomSheet(
       Container(
-        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * .88),
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * .88,
+        ),
         padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
         decoration: BoxDecoration(
           color: cardColor,
@@ -2188,52 +2874,116 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 child: Container(
                   width: 42,
                   height: 4,
-                  decoration: BoxDecoration(color: borderColor, borderRadius: BorderRadius.circular(4)),
+                  decoration: BoxDecoration(
+                    color: borderColor,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
-              Row(children: [
-                Icon(isOnline ? Icons.wifi_rounded : Icons.location_on_rounded,
-                    color: isOnline ? accentBlue : accentOrange),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text('${isOnline ? 'Online' : 'Offline'} students — counts',
-                      style: GoogleFonts.poppins(color: textColor, fontSize: 16, fontWeight: FontWeight.w700)),
-                ),
-                IconButton(onPressed: () => Get.back(), icon: const Icon(Icons.close_rounded, color: secondaryText)),
-              ]),
-              Text('Tap any number to see those students.',
-                  style: GoogleFonts.poppins(color: secondaryText, fontSize: 11)),
+              Row(
+                children: [
+                  Icon(
+                    isOnline ? Icons.wifi_rounded : Icons.location_on_rounded,
+                    color: isOnline ? accentBlue : accentOrange,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${isOnline ? 'Online' : 'Offline'} students — counts',
+                      style: GoogleFonts.poppins(
+                        color: textColor,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Get.back(),
+                    icon: const Icon(Icons.close_rounded, color: secondaryText),
+                  ),
+                ],
+              ),
+              Text(
+                'Tap any number to see those students.',
+                style: GoogleFonts.poppins(color: secondaryText, fontSize: 11),
+              ),
               const SizedBox(height: 12),
-              Row(children: [
-                Expanded(child: _summaryItem(Icons.groups_rounded, 'Total', all.length, accentPurple)),
-                const SizedBox(width: 8),
-                Expanded(child: _summaryItem(Icons.verified_rounded, 'Access ready', ready.length, successGreen)),
-                const SizedBox(width: 8),
-                Expanded(
+              Row(
+                children: [
+                  Expanded(
                     child: _summaryItem(
-                        Icons.pending_actions_rounded, 'Needs access', all.length - ready.length, goldenYellow)),
-              ]),
+                      Icons.groups_rounded,
+                      'Total',
+                      all.length,
+                      accentPurple,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _summaryItem(
+                      Icons.verified_rounded,
+                      'Access ready',
+                      ready.length,
+                      successGreen,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _summaryItem(
+                      Icons.pending_actions_rounded,
+                      'Needs access',
+                      all.length - ready.length,
+                      goldenYellow,
+                    ),
+                  ),
+                ],
+              ),
               title('Stage wise', Icons.stairs_rounded),
               header(['Stage', 'English', 'Hindi', 'Total']),
               for (int st = 1; st <= 7; st++)
                 row([
                   cell('Stage $st', flex: 3, bold: true),
-                  cell('${count('english', st)}', color: accentBlue, onTap: () => pick(lang: 'english', stage: st)),
-                  cell('${count('hindi', st)}', color: hindiColor, onTap: () => pick(lang: 'hindi', stage: st)),
-                  cell('${count('all', st)}', bold: true, onTap: () => pick(stage: st)),
+                  cell(
+                    '${count('english', st)}',
+                    color: accentBlue,
+                    onTap: () => pick(lang: 'english', stage: st),
+                  ),
+                  cell(
+                    '${count('hindi', st)}',
+                    color: hindiColor,
+                    onTap: () => pick(lang: 'hindi', stage: st),
+                  ),
+                  cell(
+                    '${count('all', st)}',
+                    bold: true,
+                    onTap: () => pick(stage: st),
+                  ),
                 ]),
               row([
                 cell('All stages', flex: 3, bold: true),
-                cell('${count('english', 0)}', bold: true, color: accentBlue, onTap: () => pick(lang: 'english')),
-                cell('${count('hindi', 0)}', bold: true, color: hindiColor, onTap: () => pick(lang: 'hindi')),
+                cell(
+                  '${count('english', 0)}',
+                  bold: true,
+                  color: accentBlue,
+                  onTap: () => pick(lang: 'english'),
+                ),
+                cell(
+                  '${count('hindi', 0)}',
+                  bold: true,
+                  color: hindiColor,
+                  onTap: () => pick(lang: 'hindi'),
+                ),
                 cell('${ready.length}', bold: true, onTap: () => pick()),
               ], total: true),
               Padding(
                 padding: const EdgeInsets.only(top: 6),
                 child: Text(
                   'A student in English and Hindi (or 2 stages) is counted in each row, but only once in "All stages".',
-                  style: GoogleFonts.poppins(color: secondaryText, fontSize: 9.5),
+                  style: GoogleFonts.poppins(
+                    color: secondaryText,
+                    fontSize: 9.5,
+                  ),
                 ),
               ),
               if (isOnline) ...[
@@ -2242,11 +2992,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 for (final sec in _sections)
                   row([
                     cell('Section $sec', flex: 3, bold: true),
-                    cell('${count('english', 0, section: sec)}',
-                        color: accentBlue, onTap: () => pick(lang: 'english', section: sec)),
-                    cell('${count('hindi', 0, section: sec)}',
-                        color: hindiColor, onTap: () => pick(lang: 'hindi', section: sec)),
-                    cell('${count('all', 0, section: sec)}', bold: true, onTap: () => pick(section: sec)),
+                    cell(
+                      '${count('english', 0, section: sec)}',
+                      color: accentBlue,
+                      onTap: () => pick(lang: 'english', section: sec),
+                    ),
+                    cell(
+                      '${count('hindi', 0, section: sec)}',
+                      color: hindiColor,
+                      onTap: () => pick(lang: 'hindi', section: sec),
+                    ),
+                    cell(
+                      '${count('all', 0, section: sec)}',
+                      bold: true,
+                      onTap: () => pick(section: sec),
+                    ),
                   ]),
                 title('Stage × Section', Icons.grid_on_rounded),
                 header(['Stage', ..._sections]),
@@ -2254,7 +3014,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   row([
                     cell('Stage $st', flex: 3, bold: true),
                     for (final sec in _sections)
-                      cell('${count('all', st, section: sec)}', onTap: () => pick(stage: st, section: sec)),
+                      cell(
+                        '${count('all', st, section: sec)}',
+                        onTap: () => pick(stage: st, section: sec),
+                      ),
                   ]),
               ],
             ],
