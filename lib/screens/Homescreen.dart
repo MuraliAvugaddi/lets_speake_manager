@@ -44,6 +44,7 @@ import 'package:lets_speake_manager/screens/AdminDropoutsScreen.dart';
 import 'package:lets_speake_manager/screens/AdminPromoteScreen.dart';
 import 'package:lets_speake_manager/screens/AdminLiveClassesScreen.dart';
 import 'package:lets_speake_manager/Api/admin_live.dart';
+import 'package:lets_speake_manager/screens/register_account_screen.dart';
 
 class Adime_home_screen extends StatefulWidget {
   const Adime_home_screen({super.key});
@@ -149,6 +150,15 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
       subtitle: 'Upload / update stage PDFs',
       icon: Icons.picture_as_pdf_rounded,
       color: Color(0xFF0F5A87),
+    ),
+
+    // 👔 STAFF ACCOUNTS (create trainer / manager logins)
+    _AdminModule(
+      index: 22,
+      title: 'Staff Accounts',
+      subtitle: 'Create trainer & manager logins',
+      icon: Icons.manage_accounts_rounded,
+      color: Color(0xFF0E7490),
     ),
 
     // 🙋 STUDENT REQUESTS (student → trainer → manager)
@@ -265,7 +275,7 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
   // ============================================================
 
   static const int pageCount =
-      22; // 21 = Student Requests, 20 = Stage Messages, 19 = Study Material, 12 = App Update, 13 = Converted Students, 14 = Trainer Tests, 15 = Dropouts, 16 = Watch Live Classes, 17 = Promote Students, 18 = Hindi Stage Merge
+      23; // 22 = Staff Accounts, 21 = Student Requests, 20 = Stage Messages, 19 = Study Material, 12 = App Update, 13 = Converted Students, 14 = Trainer Tests, 15 = Dropouts, 16 = Watch Live Classes, 17 = Promote Students, 18 = Hindi Stage Merge
 
   final List<Widget?> _pages = List<Widget?>.filled(pageCount, null);
 
@@ -410,6 +420,10 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
       // 🙋 student → trainer → manager requests
       case 21:
         return const AdminRequestsScreen();
+
+      // 👔 create trainer / manager accounts
+      case 22:
+        return const RegisterAccountScreen();
 
       default:
         return const SizedBox.shrink();

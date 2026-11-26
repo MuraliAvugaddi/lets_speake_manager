@@ -128,14 +128,25 @@ class _RegisterAccountScreenState extends State<RegisterAccountScreen> {
       return;
     }
 
+    final bool isManager = selectedRole == "manager";
     // Existing business rule: Hindi is online-only and has no section.
-    final String finalMode = selectedLanguage == "Hindi"
+    final String finalMode = (!isManager && selectedLanguage == "Hindi")
         ? "online"
         : selectedMode;
     final String finalSection =
-        (finalMode == "online" && selectedLanguage == "English")
+        (!isManager && finalMode == "online" && selectedLanguage == "English")
         ? selectedSection
         : "None";
+    final String digits = phone.replaceAll(RegExp(r'\D'), '');
+    final String phone10 = digits.length > 10 ? digits.substring(digits.length - 10) : digits;
+    if (phone10.length != 10) {
+      _message("Phone number", "Enter a valid 10-digit phone number.", error: true);
+      return;
+    }
+    if (password.length < 6) {
+      _message("Password", "Password must be at least 6 characters.", error: true);
+      return;
+    }
 
     // Staff accounts can only be created with an admin/manager login token.
     if ((ApiHeaders.token ?? '').isEmpty) {
@@ -156,17 +167,30 @@ class _RegisterAccountScreenState extends State<RegisterAccountScreen> {
         headers: ApiHeaders.json(),
         body: jsonEncode({
           "name": name,
-          "phone": phone,
+          "phone": phone10,
           "password": password,
           "mode": finalMode,
           "role": selectedRole,
-          "language": selectedLanguage,
-          "teacherStage": selectedStage,
+          "language": isManager ? "English" : selectedLanguage,
+          "teacherStage": isManager ? "stage1" : selectedStage,
           "teacherSection": finalSection,
         }),
-      );
+      ).timeout(const Duration(seconds: 25));
 
-      final data = jsonDecode(response.body);
+      Map data = {};
+      try {
+        final d = jsonDecode(response.body);
+        if (d is Map) data = d;
+      } catch (_) {}
+
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        _message(
+          "Not allowed",
+          data['message']?.toString() ?? "Your login expired. Please log out and log in again.",
+          error: true,
+        );
+        return;
+      }
 
       if (response.statusCode == 201 || response.statusCode == 200) {
         _message(
@@ -528,6 +552,28 @@ class _RegisterAccountScreenState extends State<RegisterAccountScreen> {
             ),
           ),
           const SizedBox(height: 16),
+          if (selectedRole == "manager") ...[
+            _sectionDivider("Manager for"),
+            const SizedBox(height: 11),
+            _dropdown(
+              label: "Students",
+              value: selectedMode,
+              icon: selectedMode == "online" ? Icons.wifi_rounded : Icons.location_on_outlined,
+              items: const ["online", "offline"],
+              display: (v) => v == "online" ? "Online students" : "Offline students",
+              onChanged: (value) {
+                if (value != null) setState(() => selectedMode = value);
+              },
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 9),
+              child: _info(
+                Icons.info_outline_rounded,
+                "The manager logs in to this admin app. Student requests of these students go to this manager.",
+                teal,
+              ),
+            ),
+          ] else ...[
           _sectionDivider("Teaching assignment"),
           const SizedBox(height: 11),
           _dropdown(
@@ -601,6 +647,7 @@ class _RegisterAccountScreenState extends State<RegisterAccountScreen> {
                 teal,
               ),
             ),
+          ],
           const SizedBox(height: 15),
           SizedBox(
             width: double.infinity,

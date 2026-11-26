@@ -78,7 +78,8 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
       if (response.statusCode == 200) {
         final userRole = (data['user']['role'] ?? '').toString().toLowerCase();
 
-        if (userRole == 'admin') {
+        // 👔 admin AND manager accounts open this app (managers are made in "Staff Accounts")
+        if (userRole == 'admin' || userRole == 'manager') {
           await box.write('token', data['token']);
           await box.write('user', data['user']);
 
@@ -86,7 +87,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
 
           Get.snackbar(
             'Welcome back',
-            'Administrator login successful.',
+            userRole == 'manager' ? 'Manager login successful.' : 'Administrator login successful.',
             backgroundColor: logoTeal,
             colorText: Colors.white,
             margin: const EdgeInsets.all(16),
@@ -95,7 +96,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
         } else {
           Get.snackbar(
             'Access Denied',
-            'This portal is strictly for administrators.',
+            'This app is for admins and managers. Trainers: please use the Trainer app.',
             backgroundColor: Colors.red.shade600,
             colorText: Colors.white,
             margin: const EdgeInsets.all(16),
