@@ -1109,7 +1109,9 @@ class _AdminTeacherAttendanceScreenState
     final h = _holiday;
     final windows = _shiftRules
         .whereType<Map>()
-        .map((r) => '${(r['label'] ?? '').toString().replaceAll(' shift', '')} ${r['window'] ?? ''}')
+        .map((r) => r['onlineBy'] != null
+            ? '${(r['label'] ?? '').toString().replaceAll(' shift', '')}: online by ${r['onlineBy']}, offline by ${r['offlineBy']}'
+            : '${(r['label'] ?? '').toString().replaceAll(' shift', '')} ${r['window'] ?? ''}')
         .join('  •  ');
     return Padding(
       padding: EdgeInsets.fromLTRB(isWeb ? 24 : 14, 2, isWeb ? 24 : 14, 6),

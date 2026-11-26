@@ -572,7 +572,10 @@ class _AdminHolidayScreenState extends State<AdminHolidayScreen> {
           _ruleLine('Students', 'On time = join within $grace min of the class start (05:30 class → by 05:${(30 + (int.tryParse('$grace') ?? 7)).toString().padLeft(2, '0')} AM). Later = Late, with minutes late.'),
           for (final s in shifts.whereType<Map>())
             _ruleLine('Trainer • ${(s['label'] ?? '').toString().replaceAll(' shift', '')}',
-                'Class ${s['start']} → join ${s['window']} = Present. After that = Late.'),
+                s['onlineBy'] != null
+                    ? 'Class ${s['start']} → online trainers by ${s['onlineBy']}, offline trainers by ${s['offlineBy']} = Present. After that = Late.'
+                    : 'Class ${s['start']} → join ${s['window']} = Present. After that = Late.'),
+          _ruleLine('Managers', 'No attendance (only trainers and students).'),
           _ruleLine('Online', 'Minutes in class and every join / leave are recorded (tap a student to see them).'),
           _ruleLine('Offline', 'GPS check-in time decides on time / late. Minutes are not counted.'),
         ],
