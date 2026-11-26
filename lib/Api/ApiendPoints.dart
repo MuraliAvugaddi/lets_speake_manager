@@ -1,6 +1,6 @@
 class ApiEndpoints {
   static const String baseUrl = "https://api.letsspeakglobal.com/api";
-  //static const String baseUrl = "http://192.168.1.14:5001/api";
+  //  static const String baseUrl = "http://192.168.1.14:5001/api";
 
   // Auth Endpoints
   static const String login = "$baseUrl/login";
@@ -23,6 +23,8 @@ class ApiEndpoints {
   static const String mergeHindiStages = "$baseUrl/admin/merge-hindi-stages";
   // 📚 study material PDFs (GET list, POST upload, DELETE /:id)
   static const String materials = "$baseUrl/materials";
+  static const String requests =
+      "$baseUrl/requests"; // 🙋 student → trainer → manager requests
   static const String stageMessages =
       "$baseUrl/stage-messages"; // 📨 messages to one stage / online / offline
 

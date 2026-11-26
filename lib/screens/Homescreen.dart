@@ -22,6 +22,7 @@ import 'package:lets_speake_manager/screens/AdminSectionMergeScreen.dart';
 import 'package:lets_speake_manager/screens/AdminHindiStageMergeScreen.dart';
 import 'package:lets_speake_manager/screens/AdminMaterialScreen.dart';
 import 'package:lets_speake_manager/screens/AdminStageMessageScreen.dart';
+import 'package:lets_speake_manager/screens/AdminRequestsScreen.dart';
 
 import 'package:lets_speake_manager/screens/AdminTeacherAttendanceScreen.dart';
 
@@ -150,6 +151,15 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
       color: Color(0xFF0F5A87),
     ),
 
+    // 🙋 STUDENT REQUESTS (student → trainer → manager)
+    _AdminModule(
+      index: 21,
+      title: 'Student Requests',
+      subtitle: 'Batch change, absent • trainer → manager',
+      icon: Icons.forum_rounded,
+      color: Color(0xFF7C3AED),
+    ),
+
     // 📨 STAGE MESSAGES (message to one stage / online / offline)
     _AdminModule(
       index: 20,
@@ -255,7 +265,7 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
   // ============================================================
 
   static const int pageCount =
-      21; // 20 = Stage Messages, 19 = Study Material, 12 = App Update, 13 = Converted Students, 14 = Trainer Tests, 15 = Dropouts, 16 = Watch Live Classes, 17 = Promote Students, 18 = Hindi Stage Merge
+      22; // 21 = Student Requests, 20 = Stage Messages, 19 = Study Material, 12 = App Update, 13 = Converted Students, 14 = Trainer Tests, 15 = Dropouts, 16 = Watch Live Classes, 17 = Promote Students, 18 = Hindi Stage Merge
 
   final List<Widget?> _pages = List<Widget?>.filled(pageCount, null);
 
@@ -396,6 +406,10 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
       // 📨 messages to one stage / online / offline
       case 20:
         return const AdminStageMessageScreen();
+
+      // 🙋 student → trainer → manager requests
+      case 21:
+        return const AdminRequestsScreen();
 
       default:
         return const SizedBox.shrink();
