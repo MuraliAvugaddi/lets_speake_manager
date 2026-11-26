@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:lets_speake_manager/Api/admin_badges.dart';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -581,8 +582,7 @@ class _AdminMaterialScreenState extends State<AdminMaterialScreen> {
                   child: IconButton(
                     tooltip: 'Open menu',
                     onPressed: AdminShellNavigation.openDrawer,
-                    icon: const Icon(
-                      Icons.menu_rounded,
+                    icon: AdminMenuIcon(Icons.menu_rounded,
                       color: textPrimary,
                       size: 25,
                     ),

@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:lets_speake_manager/Api/admin_badges.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -375,8 +376,7 @@ class _AdminStageMessageScreenState extends State<AdminStageMessageScreen> {
                   child: IconButton(
                     tooltip: 'Open menu',
                     onPressed: AdminShellNavigation.openDrawer,
-                    icon: const Icon(
-                      Icons.menu_rounded,
+                    icon: AdminMenuIcon(Icons.menu_rounded,
                       color: textPrimary,
                       size: 25,
                     ),

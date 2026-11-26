@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:lets_speake_manager/Api/admin_badges.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -428,7 +429,7 @@ class _AdminSectionMergeScreenState extends State<AdminSectionMergeScreen> {
                   child: IconButton(
                     tooltip: 'Open menu',
                     onPressed: AdminShellNavigation.openDrawer,
-                    icon: const Icon(Icons.menu_rounded, color: textPrimary, size: 25),
+                    icon: AdminMenuIcon(Icons.menu_rounded, color: textPrimary, size: 25),
                   ),
                 ),
               ),

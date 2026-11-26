@@ -15,6 +15,7 @@
 // They show "Also in Stage 2". Tick them only when this stage is really finished →
 // only this stage closes, the other stays as it is. Nobody is ticked by itself.
 // =========================================================================
+import 'package:lets_speake_manager/Api/admin_badges.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -2270,7 +2271,7 @@ class _AdminPromoteScreenState extends State<AdminPromoteScreen> {
             widget.embedded &&
                 AdminShellNavigation.shouldShowMenuButton(context)
             ? IconButton(
-                icon: const Icon(Icons.menu_rounded),
+                icon: AdminMenuIcon(Icons.menu_rounded),
                 onPressed: AdminShellNavigation.openDrawer,
               )
             : null,

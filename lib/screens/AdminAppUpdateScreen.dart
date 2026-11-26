@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:lets_speake_manager/Api/admin_badges.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -146,7 +147,7 @@ class _AdminAppUpdateScreenState extends State<AdminAppUpdateScreen> {
         automaticallyImplyLeading: false,
         leading: widget.embedded
             ? (AdminShellNavigation.shouldShowMenuButton(context)
-                ? IconButton(icon: const Icon(Icons.menu_rounded, color: textColor), onPressed: AdminShellNavigation.openDrawer)
+                ? IconButton(icon: AdminMenuIcon(Icons.menu_rounded, color: textColor), onPressed: AdminShellNavigation.openDrawer)
                 : null)
             : IconButton(icon: const Icon(Icons.arrow_back_rounded, color: textColor), onPressed: () => Get.back()),
         titleSpacing: widget.embedded && !AdminShellNavigation.shouldShowMenuButton(context) ? 20 : 0,

@@ -10,6 +10,7 @@
 //                            🎙 "Speak" → trainer & students HEAR you, but your
 //                            name / profile is still not shown to them.
 // =========================================================================
+import 'package:lets_speake_manager/Api/admin_badges.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -164,7 +165,7 @@ class _AdminLiveClassesScreenState extends State<AdminLiveClassesScreen> with Wi
         actionsIconTheme: const IconThemeData(color: _text),
         automaticallyImplyLeading: !widget.embedded,
         leading: widget.embedded && AdminShellNavigation.shouldShowMenuButton(context)
-            ? IconButton(icon: const Icon(Icons.menu_rounded), onPressed: AdminShellNavigation.openDrawer)
+            ? IconButton(icon: AdminMenuIcon(Icons.menu_rounded), onPressed: AdminShellNavigation.openDrawer)
             : null,
         title: Text('Watch live classes', style: GoogleFonts.poppins(fontWeight: FontWeight.w800, fontSize: 17, color: _text)),
         actions: [IconButton(onPressed: () => _load(), icon: const Icon(Icons.refresh_rounded))],

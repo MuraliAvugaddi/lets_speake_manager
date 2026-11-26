@@ -9,6 +9,7 @@
 //
 // The server puts the student back by itself when the time is over.
 // =========================================================================
+import 'package:lets_speake_manager/Api/admin_badges.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -600,7 +601,7 @@ class _AdminModeChangesScreenState extends State<AdminModeChangesScreen>
             widget.embedded &&
                 AdminShellNavigation.shouldShowMenuButton(context)
             ? IconButton(
-                icon: const Icon(Icons.menu_rounded),
+                icon: AdminMenuIcon(Icons.menu_rounded),
                 onPressed: AdminShellNavigation.openDrawer,
               )
             : null,

@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:lets_speake_manager/Api/admin_badges.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -730,7 +731,7 @@ class _AdminTestManageScreenState extends State<AdminTestManageScreen> {
       leading: IconButton(
         tooltip: 'Open menu',
         onPressed: _openAdminDrawerOrBack,
-        icon: const Icon(Icons.menu_rounded, color: text),
+        icon: AdminMenuIcon(Icons.menu_rounded, color: text),
       ),
       titleSpacing: 0,
       title: Row(

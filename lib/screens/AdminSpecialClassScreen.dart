@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:lets_speake_manager/Api/admin_badges.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -221,7 +222,7 @@ class _AdminSpecialClassScreenState extends State<AdminSpecialClassScreen> {
                 ? IconButton(
                     tooltip: 'Menu',
                     onPressed: AdminShellNavigation.openDrawer,
-                    icon: const Icon(Icons.menu_rounded, color: textColor),
+                    icon: AdminMenuIcon(Icons.menu_rounded, color: textColor),
                   )
                 : null)
             : IconButton(onPressed: () => Get.back(), icon: const Icon(Icons.arrow_back_rounded, color: textColor)),

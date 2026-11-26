@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:lets_speake_manager/Api/admin_badges.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -246,7 +247,7 @@ class _AdminFeesManageScreenState extends State<AdminFeesManageScreen>
         leading: IconButton(
           tooltip: 'Menu',
           onPressed: _openAdminDrawerOrBack,
-          icon: const Icon(Icons.menu_rounded, color: textColor, size: 23),
+          icon: AdminMenuIcon(Icons.menu_rounded, color: textColor, size: 23),
         ),
         titleSpacing: 0,
         title: Row(

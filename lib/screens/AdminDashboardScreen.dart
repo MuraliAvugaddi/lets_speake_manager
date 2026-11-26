@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:lets_speake_manager/Api/admin_badges.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -507,8 +508,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                       minHeight: 42,
                     ),
                     splashRadius: 20,
-                    icon: const Icon(
-                      Icons.menu_rounded,
+                    icon: AdminMenuIcon(Icons.menu_rounded,
                       color: textColor,
                       size: 25,
                     ),

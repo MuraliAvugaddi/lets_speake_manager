@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:lets_speake_manager/Api/admin_badges.dart';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -381,7 +382,7 @@ class _AdminPromoScreenState extends State<AdminPromoScreen> {
                 ? IconButton(
                     tooltip: 'Menu',
                     onPressed: AdminShellNavigation.openDrawer,
-                    icon: const Icon(Icons.menu_rounded, color: textColor),
+                    icon: AdminMenuIcon(Icons.menu_rounded, color: textColor),
                   )
                 : null)
             : IconButton(onPressed: () => Get.back(), icon: const Icon(Icons.arrow_back_rounded, color: textColor)),

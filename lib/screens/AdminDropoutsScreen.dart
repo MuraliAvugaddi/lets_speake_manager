@@ -8,6 +8,7 @@
 //   AdminDropoutDetailScreen  → everything about the student: fees, joined date,
 //                               attendance, practice, tests, call notes, Rejoin
 // =========================================================================
+import 'package:lets_speake_manager/Api/admin_badges.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -1626,7 +1627,7 @@ class _AdminDropoutsScreenState extends State<AdminDropoutsScreen>
             widget.embedded &&
                 AdminShellNavigation.shouldShowMenuButton(context)
             ? IconButton(
-                icon: const Icon(Icons.menu_rounded),
+                icon: AdminMenuIcon(Icons.menu_rounded),
                 onPressed: AdminShellNavigation.openDrawer,
               )
             : null,

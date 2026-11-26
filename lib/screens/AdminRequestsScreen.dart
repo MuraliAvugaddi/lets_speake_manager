@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:lets_speake_manager/Api/admin_badges.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -348,7 +349,7 @@ class _AdminRequestsScreenState extends State<AdminRequestsScreen> {
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.white,
         elevation: 0,
-        leading: IconButton(onPressed: AdminShellNavigation.openDrawer, icon: const Icon(Icons.menu_rounded, color: _text)),
+        leading: IconButton(onPressed: AdminShellNavigation.openDrawer, icon: AdminMenuIcon(Icons.menu_rounded, color: _text)),
         titleSpacing: 0,
         title: Text(
           'Student Requests',

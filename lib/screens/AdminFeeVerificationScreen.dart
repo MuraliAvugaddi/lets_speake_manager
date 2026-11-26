@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:lets_speake_manager/Api/admin_badges.dart';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -393,7 +394,7 @@ class _AdminFeeVerificationScreenState
                 onPressed: _openAdminDrawer,
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(minWidth: 42, minHeight: 42),
-                icon: const Icon(Icons.menu_rounded, color: textPrimary, size: 25),
+                icon: AdminMenuIcon(Icons.menu_rounded, color: textPrimary, size: 25),
               ),
             ),
           ),

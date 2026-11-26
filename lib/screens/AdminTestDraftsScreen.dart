@@ -7,6 +7,7 @@
 //   Release = becomes the live test of that language + stage
 //   (replaces the old one; old results stay saved).
 // =========================================================================
+import 'package:lets_speake_manager/Api/admin_badges.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -198,7 +199,7 @@ class _AdminTestDraftsScreenState extends State<AdminTestDraftsScreen>
             widget.embedded &&
                 AdminShellNavigation.shouldShowMenuButton(context)
             ? IconButton(
-                icon: const Icon(Icons.menu_rounded),
+                icon: AdminMenuIcon(Icons.menu_rounded),
                 onPressed: AdminShellNavigation.openDrawer,
               )
             : null,

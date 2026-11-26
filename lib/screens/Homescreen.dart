@@ -44,6 +44,7 @@ import 'package:lets_speake_manager/screens/AdminDropoutsScreen.dart';
 import 'package:lets_speake_manager/screens/AdminPromoteScreen.dart';
 import 'package:lets_speake_manager/screens/AdminLiveClassesScreen.dart';
 import 'package:lets_speake_manager/Api/admin_live.dart';
+import 'package:lets_speake_manager/Api/admin_badges.dart';
 import 'package:lets_speake_manager/screens/register_account_screen.dart';
 
 class Adime_home_screen extends StatefulWidget {
@@ -71,6 +72,12 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
   static const Color secondaryText = Color(0xFF6B8496);
   static const Color success = Color(0xFF16A66A);
   static const Color error = Color(0xFFE45757);
+
+  @override
+  void initState() {
+    super.initState();
+    AdminBadges.start(); // 🔴 red counts in the menu
+  }
 
   // ============================================================
   // ADMIN MODULES
@@ -326,6 +333,7 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
     AdminLive.reset(); // close live updates (next login opens a new one)
     GetStorage().erase();
 
+    AdminBadges.stop();
     Get.offAll(() => const AdminLoginScreen());
 
     Get.snackbar(
@@ -446,6 +454,7 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
           child: InkWell(
             borderRadius: BorderRadius.circular(13),
             onTap: () {
+              AdminBadges.opened(index);
               AdminShellNavigation.selectModule(index);
             },
             child: AnimatedContainer(
@@ -489,6 +498,26 @@ class _Adime_home_screenState extends State<Adime_home_screen> {
                       ),
                     ),
                   ),
+
+                  // 🔴 something waits for the admin here
+                  if (AdminBadges.of(index) > 0)
+                    Container(
+                      constraints: const BoxConstraints(minWidth: 22),
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: selected ? Colors.white : error,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        AdminBadges.of(index) > 99 ? '99+' : '${AdminBadges.of(index)}',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.poppins(
+                          color: selected ? error : Colors.white,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
